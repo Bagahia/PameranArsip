@@ -110,9 +110,26 @@ The frontend calls a Netlify Function. The function reads your env vars, adds th
 
 ## Step 4: Customize the UI (Optional)
 
-### Replace the Logo
-1. Place your own logo image at `assets/logo.png` (PNG, SVG, or JPG).
-2. The app auto-loads it. If the file is missing, it falls back to the default SVG.
+### Sponsor Logos
+The app auto-detects and displays sponsor logos from the `assets/` folder.
+
+1. Place your logo files in the `assets/` folder with this naming convention:
+   ```
+   assets/
+   ├── logo1.png    ← First sponsor
+   ├── logo2.png    ← Second sponsor
+   ├── logo3.svg    ← Third sponsor (any format)
+   └── logo4.jpg    ← Fourth sponsor
+   ```
+
+2. Supported formats: `png`, `svg`, `jpg`, `jpeg`, `webp`, `gif`
+
+3. The app checks for `logo1` through `logo10` and **only displays logos that exist**:
+   - 3 files → 3 logos shown in a row
+   - 1 file → 1 logo shown
+   - 0 files → default SVG fallback shown
+
+4. Logos are displayed in a responsive flex row with consistent height (h-16 on mobile, h-20 on desktop).
 
 ### Edit Text & Colors
 Open `index.html` and look for the `CUSTOMIZATION` comment block near the top:
@@ -296,7 +313,9 @@ PameranArsip/
 │   └── functions/
 │       └── quiz.js             ← Server-side proxy (reads env vars)
 ├── assets/
-│   └── logo.png                ← Custom logo (optional)
+│   ├── logo1.png               ← Sponsor logo 1 (optional)
+│   ├── logo2.png               ← Sponsor logo 2 (optional)
+│   └── ...                     ← Up to logo10 in any format
 └── SETUP.md                    ← This file
 ```
 

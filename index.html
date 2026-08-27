@@ -42,31 +42,12 @@
 <body class="bg-surface-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
 
   <!-- ==================== LANDING VIEW ==================== -->
-  <!-- CUSTOMIZATION: Edit title, subtitle, button text, and logo below -->
+  <!-- CUSTOMIZATION: Edit title, subtitle, button text, and logos below -->
   <div id="view-landing" class="w-full max-w-lg text-center fade-in">
-    <!-- Logo: Place your custom image at assets/logo.png (or .svg/.jpg) to replace the default SVG -->
-    <div class="mb-8 flex justify-center">
-      <img
-        id="app-logo"
-        src="assets/logo.png"
-        alt="Quiz Logo"
-        class="w-24 h-24 glow object-contain"
-        onerror="this.style.display='none';document.getElementById('app-logo-fallback').style.display='block';"
-      />
-      <!-- Fallback SVG logo (shown if assets/logo.png is missing) -->
-      <svg id="app-logo-fallback" class="w-24 h-24 glow" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="display:none;">
-        <defs>
-          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#818cf8"/>
-            <stop offset="100%" style="stop-color:#6366f1"/>
-          </linearGradient>
-        </defs>
-        <rect x="10" y="10" width="80" height="80" rx="20" fill="url(#grad)"/>
-        <text x="50" y="58" text-anchor="middle" font-size="32" font-weight="bold" fill="white" font-family="Inter,sans-serif">Q</text>
-        <circle cx="78" cy="22" r="10" fill="#fbbf24"/>
-        <text x="78" y="26" text-anchor="middle" font-size="10" font-weight="bold" fill="#0f172a" font-family="Inter,sans-serif">!</text>
-      </svg>
-    </div>
+    <!-- CUSTOMIZATION: Place sponsor logos as assets/logo1.png, logo2.png, logo3.png, etc.
+         The app auto-detects which files exist and displays them in a row.
+         Remove or add files to control how many logos appear. -->
+    <div id="logo-container" class="mb-8 flex flex-wrap justify-center items-center gap-4"></div>
     <!-- CUSTOMIZATION: Change the title and subtitle text -->
     <h1 class="text-4xl font-extrabold mb-3 glow-text text-white">Quiz Challenge</h1>
     <p class="text-slate-400 text-lg mb-10">Test your knowledge with randomized questions. Each attempt is unique!</p>
@@ -134,6 +115,69 @@
     const progressBar  = document.getElementById("progress-bar");
     const questionText = document.getElementById("question-text");
     const optionsContainer = document.getElementById("options-container");
+    const logoContainer = document.getElementById("logo-container");
+
+    // ============================================================
+    // SPONSOR LOGOS — Auto-detects assets/logo1.png through logo10.png
+    // Displays only logos that exist. Remove/add files to control count.
+    // ============================================================
+    const MAX_LOGOS = 10;
+    const LOGO_EXTENSIONS = ["png", "svg", "jpg", "jpeg", "webp", "gif"];
+
+    function loadSponsorLogos() {
+      let loaded = 0;
+      let checked = 0;
+
+      for (let i = 1; i <= MAX_LOGOS; i++) {
+        for (let ext of LOGO_EXTENSIONS) {
+          const img = new Image();
+          const src = "assets/logo" + i + "." + ext;
+          img.dataset.logoNum = i;
+          img.dataset.src = src;
+
+          img.onload = function () {
+            if (!document.querySelector('[data-logo-id="logo' + this.dataset.logoNum + '"]')) {
+              const wrapper = document.createElement("div");
+              wrapper.className = "flex-shrink-0";
+              wrapper.dataset.logoId = "logo" + this.dataset.logoNum;
+
+              this.className = "h-16 md:h-20 w-auto object-contain glow";
+              this.alt = "Sponsor " + this.dataset.logoNum;
+              wrapper.appendChild(this);
+              logoContainer.appendChild(wrapper);
+            }
+            checked++;
+            if (checked === MAX_LOGOS * LOGO_EXTENSIONS.length) finishLogoLoad();
+          };
+
+          img.onerror = function () {
+            checked++;
+            if (checked === MAX_LOGOS * LOGO_EXTENSIONS.length) finishLogoLoad();
+          };
+
+          img.src = src;
+        }
+      }
+
+      function finishLogoLoad() {
+        const logos = logoContainer.children;
+        if (logos.length === 0) {
+          // No custom logos found — show the fallback SVG
+          logoContainer.innerHTML =
+            '<svg class="w-24 h-24 glow" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
+            '<defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+            '<stop offset="0%" style="stop-color:#818cf8"/>' +
+            '<stop offset="100%" style="stop-color:#6366f1"/></linearGradient></defs>' +
+            '<rect x="10" y="10" width="80" height="80" rx="20" fill="url(#grad)"/>' +
+            '<text x="50" y="58" text-anchor="middle" font-size="32" font-weight="bold" fill="white" font-family="Inter,sans-serif">Q</text>' +
+            '<circle cx="78" cy="22" r="10" fill="#fbbf24"/>' +
+            '<text x="78" y="26" text-anchor="middle" font-size="10" font-weight="bold" fill="#0f172a" font-family="Inter,sans-serif">!</text>' +
+            '</svg>';
+        }
+      }
+    }
+
+    loadSponsorLogos();
 
     // ============================================================
     // VIEW SWITCHING
