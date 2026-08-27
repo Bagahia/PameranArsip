@@ -50,7 +50,10 @@
     <div id="logo-container" class="mb-8 flex flex-wrap justify-center items-center gap-6"></div>
     <!-- CUSTOMIZATION: Change the title and subtitle text -->
     <h1 class="text-4xl font-extrabold mb-3 glow-text text-white">Kuis Pameran Arsip</h1>
-    <p class="text-slate-400 text-lg mb-10">Jawab pertanyaanya dan dapatkan hadiah yang menarik</p>
+    <p class="text-slate-400 text-lg mb-6">Jawab pertanyaanya dan dapatkan hadiah yang menarik</p>
+    <!-- Name input (required) -->
+    <input id="input-name" type="text" placeholder="Masukkan nama Anda..."
+      class="w-full px-5 py-4 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-lg mb-6 transition-all duration-200" />
     <!-- CUSTOMIZATION: Change the button text -->
     <button id="btn-start"
       onclick="startQuiz()"
@@ -64,6 +67,7 @@
   <div id="view-quiz" class="w-full max-w-2xl hidden">
     <div class="bg-surface-800 rounded-3xl p-6 md:p-8 shadow-2xl slide-up">
       <div class="flex items-center justify-between mb-6">
+        <div id="quiz-logo" class="flex-shrink-0"></div>
         <span id="progress-text" class="text-sm font-semibold text-accent-400">Soal 1 / 10</span>
         <span class="text-xs font-medium bg-surface-900 text-accent-400 px-3 py-1 rounded-full border border-accent-500/30">Target: 100</span>
       </div>
@@ -79,6 +83,7 @@
   <div id="view-results" class="w-full max-w-lg text-center hidden">
     <div id="results-card" class="bg-surface-800 rounded-3xl p-8 md:p-10 shadow-2xl slide-up">
       <div id="results-icon" class="mb-6 flex justify-center"></div>
+      <p id="results-greeting" class="text-xl font-bold text-white mb-2"></p>
       <h2 id="results-title" class="text-3xl font-extrabold mb-4"></h2>
       <div class="bg-surface-900 rounded-2xl py-6 px-4 mb-8 border border-slate-700/50">
         <p class="text-slate-400 text-sm mb-1">Skor Anda</p>
@@ -97,11 +102,18 @@
     const API_URL = "/.netlify/functions/quiz";
 
     // ============================================================
+    // CACHE CONFIG
+    // ============================================================
+    const CACHE_KEY = "quiz_questions";
+    const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+    // ============================================================
     // STATE
     // ============================================================
     let questions = [];
     let currentIndex = 0;
     let correctAnswers = 0;
+    let userName = "";
 
     // ============================================================
     // DOM REFERENCES
@@ -111,11 +123,13 @@
     const viewResults = document.getElementById("view-results");
     const btnStart    = document.getElementById("btn-start");
     const landingStatus = document.getElementById("landing-status");
+    const inputName   = document.getElementById("input-name");
     const progressText = document.getElementById("progress-text");
     const progressBar  = document.getElementById("progress-bar");
     const questionText = document.getElementById("question-text");
     const optionsContainer = document.getElementById("options-container");
     const logoContainer = document.getElementById("logo-container");
+    const quizLogo = document.getElementById("quiz-logo");
 
     // ============================================================
     // SPONSOR LOGOS — Auto-detects assets/logo1.png through logo10.png
@@ -123,6 +137,7 @@
     // ============================================================
     const MAX_LOGOS = 10;
     const LOGO_EXTENSIONS = ["png", "svg", "jpg", "jpeg", "webp", "gif"];
+    let firstLogoSrc = null; // store first detected logo for quiz view
 
     function loadSponsorLogos() {
       let loaded = 0;
@@ -145,6 +160,12 @@
               this.alt = "Sponsor " + this.dataset.logoNum;
               wrapper.appendChild(this);
               logoContainer.appendChild(wrapper);
+
+              // Store first logo for quiz view
+              if (!firstLogoSrc) {
+                firstLogoSrc = src;
+                updateQuizLogo();
+              }
             }
             checked++;
             if (checked === MAX_LOGOS * LOGO_EXTENSIONS.length) finishLogoLoad();
@@ -177,6 +198,12 @@
       }
     }
 
+    function updateQuizLogo() {
+      if (firstLogoSrc) {
+        quizLogo.innerHTML = '<img src="' + firstLogoSrc + '" alt="Sponsor" class="h-6 md:h-8 max-w-[80px] w-auto object-contain" />';
+      }
+    }
+
     loadSponsorLogos();
 
     // ============================================================
@@ -191,15 +218,81 @@
     }
 
     // ============================================================
+    // FISHER-YATES SHUFFLE (client-side)
+    // ============================================================
+    function shuffleArray(arr) {
+      const shuffled = arr.slice();
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const temp = shuffled[i];
+        shuffled[i] = shuffled[j];
+        shuffled[j] = temp;
+      }
+      return shuffled;
+    }
+
+    // ============================================================
+    // CACHE HELPERS
+    // ============================================================
+    function getCachedQuestions() {
+      try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        const cached = JSON.parse(raw);
+        if (Date.now() - cached.ts > CACHE_TTL) {
+          localStorage.removeItem(CACHE_KEY);
+          return null;
+        }
+        return cached.data;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function setCachedQuestions(data) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data }));
+      } catch (e) {
+        // localStorage full or disabled — ignore
+      }
+    }
+
+    // ============================================================
     // START QUIZ
     // ============================================================
     async function startQuiz() {
+      // Validate name input
+      const nameVal = inputName.value.trim();
+      if (!nameVal) {
+        inputName.classList.add("border-red-500");
+        inputName.focus();
+        return;
+      }
+      userName = nameVal;
+      inputName.classList.remove("border-red-500");
+
       btnStart.disabled = true;
       btnStart.textContent = "Memuat Soal...";
       landingStatus.classList.remove("hidden");
       landingStatus.classList.remove("text-red-400");
-      landingStatus.textContent = "Menghubungkan ke server...";
 
+      // Try cache first
+      const cached = getCachedQuestions();
+      if (cached && cached.length > 0) {
+        landingStatus.textContent = "Memuat dari cache...";
+        questions = shuffleArray(cached).slice(0, 10);
+        currentIndex = 0;
+        correctAnswers = 0;
+        showView("quiz");
+        renderQuestion();
+        btnStart.disabled = false;
+        btnStart.textContent = "Mulai Sekarang";
+        landingStatus.classList.add("hidden");
+        return;
+      }
+
+      // Fetch from API
+      landingStatus.textContent = "Menghubungkan ke server...";
       try {
         const resp = await fetch(API_URL);
         const data = await resp.json();
@@ -208,11 +301,16 @@
           throw new Error(data.error);
         }
 
-        questions = data.questions;
-
-        if (!questions || questions.length === 0) {
+        const allQuestions = data.questions;
+        if (!allQuestions || allQuestions.length === 0) {
           throw new Error("No questions available");
         }
+
+        // Cache all questions for future replays
+        setCachedQuestions(allQuestions);
+
+        // Shuffle and pick 10
+        questions = shuffleArray(allQuestions).slice(0, 10);
 
         currentIndex = 0;
         correctAnswers = 0;
@@ -223,7 +321,7 @@
         landingStatus.classList.add("text-red-400");
       } finally {
         btnStart.disabled = false;
-        btnStart.textContent = "Mulai Kuis";
+        btnStart.textContent = "Mulai Sekarang";
       }
     }
 
@@ -308,8 +406,11 @@
 
       const resultsIcon  = document.getElementById("results-icon");
       const resultsTitle = document.getElementById("results-title");
+      const resultsGreeting = document.getElementById("results-greeting");
       const scoreDisplay = document.getElementById("score-display");
       const btnAction    = document.getElementById("btn-result-action");
+
+      resultsGreeting.textContent = "Selamat, " + userName + "!";
 
       if (isPerfect) {
         resultsIcon.innerHTML =
@@ -362,6 +463,8 @@
       questions = [];
       currentIndex = 0;
       correctAnswers = 0;
+      userName = "";
+      inputName.value = "";
       showView("landing");
     }
 

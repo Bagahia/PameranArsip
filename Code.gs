@@ -6,6 +6,23 @@
 
 const API_SECRET_KEY = "CHANGE_ME_TO_A_RANDOM_SECRET_KEY_32_CHARS";
 
+// --- In-memory cache (persists across warm invocations) ---
+var _cachedQuestions = null;
+var _cacheTimestamp = 0;
+var _cacheTTL = 5 * 60 * 1000; // 5 minutes
+
+// --- Parse CorrectIndex - supports both formats ---
+// Numeric: 0,1,2,3 (legacy)
+// Letter: A,B,C,D (new human-readable)
+function parseCorrectIndex(value) {
+  const str = String(value).trim().toUpperCase();
+  if (['A','B','C','D'].includes(str)) {
+    return str.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+  }
+  const num = Number(value);
+  return (!isNaN(num) && num >= 0 && num <= 3) ? num : 0;
+}
+
 function doGet(e) {
   const paramKey = e.parameter.key;
 
@@ -31,19 +48,29 @@ function doGet(e) {
     // fallback to 5
   }
 
-  // --- Read all questions from "Questions" sheet ---
-  const questionsSheet = ss.getSheetByName("Questions");
-  const data = questionsSheet.getDataRange().getValues();
-  const header = data[0]; // [Question, OptionA, OptionB, OptionC, OptionD, CorrectIndex]
-  const rows = data.slice(1); // skip header
+  // --- Read all questions (with in-memory cache) ---
+  const now = Date.now();
+  let allQuestions;
 
-  const allQuestions = rows.map(function (row) {
-    return {
-      question: String(row[0]),
-      options: [String(row[1]), String(row[2]), String(row[3]), String(row[4])],
-      correctIndex: Number(row[5])
-    };
-  });
+  if (_cachedQuestions && (now - _cacheTimestamp) < _cacheTTL) {
+    allQuestions = _cachedQuestions; // skip sheet read
+  } else {
+    const questionsSheet = ss.getSheetByName("Questions");
+    const data = questionsSheet.getDataRange().getValues();
+    const header = data[0]; // [Question, OptionA, OptionB, OptionC, OptionD, CorrectIndex]
+    const rows = data.slice(1); // skip header
+
+    allQuestions = rows.map(function (row) {
+      return {
+        question: String(row[0]),
+        options: [String(row[1]), String(row[2]), String(row[3]), String(row[4])],
+        correctIndex: parseCorrectIndex(row[5])
+      };
+    });
+
+    _cachedQuestions = allQuestions;
+    _cacheTimestamp = now;
+  }
 
   // --- Fisher-Yates shuffle ---
   for (let i = allQuestions.length - 1; i > 0; i--) {

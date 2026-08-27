@@ -58,20 +58,24 @@ The app has 3 views, all in `index.html`. JavaScript toggles visibility with `sh
 - Sponsor logos auto-detected from `assets/logo1.png` through `logo10.png`
 - Title: "Kuis Pameran Arsip"
 - Subtitle: "Jawab pertanyaanya dan dapatkan hadiah yang menarik"
+- **Name input (required)**: User must enter their name before starting
 - CTA button: "Mulai Sekarang" → calls `startQuiz()`
 - Loading state: button text changes to "Memuat Soal..." while fetching
 
 ### View 2: Quiz (`#view-quiz`)
+- **Sponsor logo**: First detected logo displayed in header (always visible during quiz)
 - Header: progress counter ("Soal 3 / 10") + target indicator ("Target: 100")
 - Progress bar animates per question
 - Question card with 4 option buttons (A, B, C, D badges)
 - On click: highlights correct (green) / incorrect (red), then advances after 600ms
+- **Client-side shuffle**: Questions shuffled in browser for instant replay
 
 ### View 3: Results (`#view-results`)
+- **Personalized greeting**: "Selamat, [Name]!" displayed above score
 - Score normalized to 100-point scale: `Math.round((correctAnswers / totalQuestions) * 100)`
 - **Score == 100:** Trophy icon, "Skor Sempurna!", confetti burst, "Kembali ke Beranda" button
 - **Score < 100:** Retry icon, "Coba Lagi!", score display, "Coba Lagi" button
-- Both buttons call `resetToLanding()` which resets all state
+- Both buttons call `resetToLanding()` which resets all state and clears name
 
 ## Google Apps Script Backend (`Code.gs`)
 
@@ -80,25 +84,29 @@ The app has 3 views, all in `index.html`. JavaScript toggles visibility with `sh
 **Settings tab:**
 | A | B |
 |---|---|
-| QuestionCount | 5 |
+| QuestionCount | 10 |
 
 Cell B1 controls how many questions per quiz (editable by admin anytime).
 
 **Questions tab:**
 | Question | OptionA | OptionB | OptionC | OptionD | CorrectIndex |
 |----------|---------|---------|---------|---------|--------------|
-| Contoh pertanyaan? | Jawaban A | Jawaban B | Jawaban C | Jawaban D | 1 |
+| Contoh pertanyaan? | Jawaban A | Jawaban B | Jawaban C | Jawaban D | B |
 
-- `CorrectIndex`: 0 = OptionA, 1 = OptionB, 2 = OptionC, 3 = OptionD
-- Supports 100+ rows
+- `CorrectIndex`: Accepts **letters** (A, B, C, D) or numbers (0, 1, 2, 3)
+  - A = OptionA, B = OptionB, C = OptionC, D = OptionD
+  - Legacy numeric format still works for backward compatibility
+- Supports 1000+ rows
 
 ### Logic Flow
 1. Validate `e.parameter.key` against `API_SECRET_KEY` → 403 if invalid
-2. Read `QuestionCount` from Settings sheet (fallback: 5)
-3. Read all rows from Questions sheet
-4. Fisher-Yates shuffle all questions
-5. Slice to `QuestionCount`
-6. Return JSON with `ContentService.MimeType.JSON`
+2. Read `QuestionCount` from Settings sheet (fallback: 10)
+3. Check in-memory cache (5 min TTL) — skip sheet read if cached
+4. Read all rows from Questions sheet (if not cached)
+5. Parse `CorrectIndex` — supports A/B/C/D letters or 0/1/2/3 numbers
+6. Fisher-Yates shuffle all questions
+7. Slice to `QuestionCount`
+8. Return JSON with `ContentService.MimeType.JSON`
 
 ### Deployment
 - Deploy as Web App → Execute as: Me → Who has access: Anyone
@@ -168,6 +176,29 @@ accent: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
 2. Deploy → Manage deployments → Edit → New version → Deploy
 3. No frontend changes needed
 
+## Performance Optimization
+
+### Caching Strategy (3 Layers)
+
+| Layer | Location | TTL | Effect |
+|-------|----------|-----|--------|
+| Server-side | Apps Script in-memory | 5 min | Skip Google Sheet read on warm invocations |
+| Network | Netlify Function → Browser | 60s | `Cache-Control: public, max-age=60` |
+| Client-side | localStorage | 5 min | Instant replay, no network requests |
+
+### Client-Side Shuffle
+- Questions shuffled in browser using Fisher-Yates algorithm
+- First load: fetch from API → cache in localStorage → shuffle → pick 10
+- Replay: read from localStorage → shuffle → pick 10 (instant)
+- Cache expires after 5 minutes, then fresh data is fetched
+
+### Expected Performance
+| Scenario | Before | After |
+|----------|--------|-------|
+| First load (cold) | 3-8s | 3-8s |
+| First load (warm) | 1-3s | <500ms |
+| Replay quiz | 3-8s | **<10ms** |
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -177,7 +208,8 @@ accent: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
 | Function 500 error | Apps Script URL wrong or not deployed | Check URL ends with `/exec`, redeploy |
 | Blank page | JS error | Open DevTools Console (F12) |
 | Logos not showing | Files not in assets/ or wrong naming | Check filename is `logo1.png` etc. |
-| Questions not updating | Apps Script caching | Redeploy the Web App |
+| Questions not updating | Caching in Apps Script or browser | Wait 5 min for cache to expire, or redeploy Apps Script |
+| Name input not working | Browser JS disabled | Enable JavaScript in browser settings |
 
 ## Git & Deployment
 
