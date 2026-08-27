@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz Challenge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <style>
+    <!-- CUSTOMIZATION: Change font by swapping "Inter" for another Google Font (e.g., Poppins, Roboto) -->
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .glow { filter: drop-shadow(0 0 18px rgba(99,102,241,0.6)); }
+    .glow-text { text-shadow: 0 0 20px rgba(99,102,241,0.4); }
+    .btn-pulse { animation: pulse-ring 1.5s ease-in-out infinite; }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
+      70% { box-shadow: 0 0 0 12px rgba(99,102,241,0); }
+      100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+    }
+    .fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-up { animation: slideUp 0.5s ease-out; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    .confetti-full { position: fixed; inset: 0; pointer-events: none; z-index: 9999; }
+  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            <!-- CUSTOMIZATION: Change these hex values to rebrand the theme. Use https://tailwindcss.com/docs/customizing-colors -->
+            surface: { 800: '#1e293b', 900: '#0f172a', 950: '#020617' },
+            accent:  { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-surface-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
+
+  <!-- ==================== LANDING VIEW ==================== -->
+  <!-- CUSTOMIZATION: Edit title, subtitle, button text, and logo below -->
+  <div id="view-landing" class="w-full max-w-lg text-center fade-in">
+    <!-- Logo: Place your custom image at assets/logo.png (or .svg/.jpg) to replace the default SVG -->
+    <div class="mb-8 flex justify-center">
+      <img
+        id="app-logo"
+        src="assets/logo.png"
+        alt="Quiz Logo"
+        class="w-24 h-24 glow object-contain"
+        onerror="this.style.display='none';document.getElementById('app-logo-fallback').style.display='block';"
+      />
+      <!-- Fallback SVG logo (shown if assets/logo.png is missing) -->
+      <svg id="app-logo-fallback" class="w-24 h-24 glow" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="display:none;">
+        <defs>
+          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#818cf8"/>
+            <stop offset="100%" style="stop-color:#6366f1"/>
+          </linearGradient>
+        </defs>
+        <rect x="10" y="10" width="80" height="80" rx="20" fill="url(#grad)"/>
+        <text x="50" y="58" text-anchor="middle" font-size="32" font-weight="bold" fill="white" font-family="Inter,sans-serif">Q</text>
+        <circle cx="78" cy="22" r="10" fill="#fbbf24"/>
+        <text x="78" y="26" text-anchor="middle" font-size="10" font-weight="bold" fill="#0f172a" font-family="Inter,sans-serif">!</text>
+      </svg>
+    </div>
+    <!-- CUSTOMIZATION: Change the title and subtitle text -->
+    <h1 class="text-4xl font-extrabold mb-3 glow-text text-white">Quiz Challenge</h1>
+    <p class="text-slate-400 text-lg mb-10">Test your knowledge with randomized questions. Each attempt is unique!</p>
+    <!-- CUSTOMIZATION: Change the button text -->
+    <button id="btn-start"
+      onclick="startQuiz()"
+      class="bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-10 rounded-2xl text-lg transition-all duration-200 btn-pulse cursor-pointer">
+      Start Quiz
+    </button>
+    <p id="landing-status" class="mt-4 text-slate-500 text-sm hidden"></p>
+  </div>
+
+  <!-- ==================== QUIZ VIEW ==================== -->
+  <div id="view-quiz" class="w-full max-w-2xl hidden">
+    <div class="bg-surface-800 rounded-3xl p-6 md:p-8 shadow-2xl slide-up">
+      <div class="flex items-center justify-between mb-6">
+        <span id="progress-text" class="text-sm font-semibold text-accent-400">Question 1 / 10</span>
+        <span class="text-xs font-medium bg-surface-900 text-accent-400 px-3 py-1 rounded-full border border-accent-500/30">Target: 100</span>
+      </div>
+      <div class="w-full bg-surface-900 rounded-full h-2 mb-8">
+        <div id="progress-bar" class="bg-accent-500 h-2 rounded-full transition-all duration-500" style="width:10%"></div>
+      </div>
+      <h2 id="question-text" class="text-xl md:text-2xl font-bold text-white mb-8 leading-relaxed"></h2>
+      <div id="options-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    </div>
+  </div>
+
+  <!-- ==================== RESULTS VIEW ==================== -->
+  <div id="view-results" class="w-full max-w-lg text-center hidden">
+    <div id="results-card" class="bg-surface-800 rounded-3xl p-8 md:p-10 shadow-2xl slide-up">
+      <div id="results-icon" class="mb-6 flex justify-center"></div>
+      <h2 id="results-title" class="text-3xl font-extrabold mb-4"></h2>
+      <div class="bg-surface-900 rounded-2xl py-6 px-4 mb-8 border border-slate-700/50">
+        <p class="text-slate-400 text-sm mb-1">Your Score</p>
+        <p id="score-display" class="text-5xl font-extrabold text-white"></p>
+      </div>
+      <button id="btn-result-action"
+        class="bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-10 rounded-2xl text-lg transition-all duration-200 cursor-pointer">
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // CONFIGURATION — No secrets exposed here. The Netlify Function injects the API key server-side.
+    // ============================================================
+    const API_URL = "/.netlify/functions/quiz";
+
+    // ============================================================
+    // STATE
+    // ============================================================
+    let questions = [];
+    let currentIndex = 0;
+    let correctAnswers = 0;
+
+    // ============================================================
+    // DOM REFERENCES
+    // ============================================================
+    const viewLanding = document.getElementById("view-landing");
+    const viewQuiz    = document.getElementById("view-quiz");
+    const viewResults = document.getElementById("view-results");
+    const btnStart    = document.getElementById("btn-start");
+    const landingStatus = document.getElementById("landing-status");
+    const progressText = document.getElementById("progress-text");
+    const progressBar  = document.getElementById("progress-bar");
+    const questionText = document.getElementById("question-text");
+    const optionsContainer = document.getElementById("options-container");
+
+    // ============================================================
+    // VIEW SWITCHING
+    // ============================================================
+    function showView(name) {
+      viewLanding.classList.add("hidden");
+      viewQuiz.classList.add("hidden");
+      viewResults.classList.add("hidden");
+      const map = { landing: viewLanding, quiz: viewQuiz, results: viewResults };
+      map[name].classList.remove("hidden");
+    }
+
+    // ============================================================
+    // START QUIZ
+    // ============================================================
+    async function startQuiz() {
+      btnStart.disabled = true;
+      btnStart.textContent = "Fetching Questions...";
+      landingStatus.classList.remove("hidden");
+      landingStatus.classList.remove("text-red-400");
+      landingStatus.textContent = "Connecting to server...";
+
+      try {
+        const resp = await fetch(API_URL);
+        const data = await resp.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        questions = data.questions;
+
+        if (!questions || questions.length === 0) {
+          throw new Error("No questions available");
+        }
+
+        currentIndex = 0;
+        correctAnswers = 0;
+        showView("quiz");
+        renderQuestion();
+      } catch (err) {
+        landingStatus.textContent = "Failed to load questions. Check your API configuration.";
+        landingStatus.classList.add("text-red-400");
+      } finally {
+        btnStart.disabled = false;
+        btnStart.textContent = "Start Quiz";
+      }
+    }
+
+    // ============================================================
+    // RENDER QUESTION
+    // ============================================================
+    function renderQuestion() {
+      const q = questions[currentIndex];
+      progressText.textContent = "Question " + (currentIndex + 1) + " / " + questions.length;
+      progressBar.style.width = ((currentIndex + 1) / questions.length * 100) + "%";
+      questionText.textContent = q.question;
+
+      const badges = ["A", "B", "C", "D"];
+      optionsContainer.innerHTML = "";
+
+      q.options.forEach(function (opt, idx) {
+        const btn = document.createElement("button");
+        btn.className = [
+          "flex items-center gap-3 w-full text-left px-5 py-4 rounded-xl",
+          "bg-surface-900 border-2 border-slate-600/40 hover:border-accent-400",
+          "hover:bg-surface-950 transition-all duration-200 cursor-pointer group"
+        ].join(" ");
+        btn.innerHTML =
+          '<span class="flex-shrink-0 w-9 h-9 rounded-lg bg-accent-500/20 text-accent-400 font-bold text-sm flex items-center justify-center group-hover:bg-accent-500 group-hover:text-white transition-all">' +
+          badges[idx] + "</span>" +
+          '<span class="text-slate-200 font-medium">' + escapeHtml(opt) + "</span>";
+
+        btn.addEventListener("click", function () {
+          handleAnswer(idx);
+        });
+
+        optionsContainer.appendChild(btn);
+      });
+
+      // Re-trigger slide-up animation
+      const card = viewQuiz.querySelector("div");
+      card.classList.remove("slide-up");
+      void card.offsetWidth;
+      card.classList.add("slide-up");
+    }
+
+    // ============================================================
+    // HANDLE ANSWER
+    // ============================================================
+    function handleAnswer(selectedIndex) {
+      const q = questions[currentIndex];
+      const buttons = optionsContainer.querySelectorAll("button");
+
+      buttons.forEach(function (b) { b.disabled = true; });
+
+      buttons.forEach(function (b, i) {
+        if (i === q.correctIndex) {
+          b.className = b.className.replace("border-slate-600/40", "border-green-500");
+          b.className = b.className.replace("bg-surface-900", "bg-green-500/10");
+        } else if (i === selectedIndex) {
+          b.className = b.className.replace("border-slate-600/40", "border-red-500");
+          b.className = b.className.replace("bg-surface-900", "bg-red-500/10");
+        }
+      });
+
+      if (selectedIndex === q.correctIndex) {
+        correctAnswers++;
+      }
+
+      setTimeout(function () {
+        currentIndex++;
+        if (currentIndex < questions.length) {
+          renderQuestion();
+        } else {
+          showResults();
+        }
+      }, 600);
+    }
+
+    // ============================================================
+    // SHOW RESULTS
+    // ============================================================
+    function showResults() {
+      const total = questions.length;
+      const score = Math.round((correctAnswers / total) * 100);
+      const isPerfect = score === 100;
+
+      const resultsIcon  = document.getElementById("results-icon");
+      const resultsTitle = document.getElementById("results-title");
+      const scoreDisplay = document.getElementById("score-display");
+      const btnAction    = document.getElementById("btn-result-action");
+
+      if (isPerfect) {
+        resultsIcon.innerHTML =
+          '<svg class="w-20 h-20 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
+          '<path d="M12 2l2.09 6.26L21 9.27l-5 4.87L17.18 22 12 18.56 6.82 22 8 14.14l-5-4.87 6.91-1.01L12 2z"/>' +
+          '<circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.3"/></svg>';
+        resultsTitle.textContent = "Perfect Score!";
+        resultsTitle.className = "text-3xl font-extrabold mb-4 text-yellow-400";
+        scoreDisplay.textContent = "100 / 100";
+        scoreDisplay.className = "text-5xl font-extrabold text-yellow-400";
+        btnAction.textContent = "Back to Home";
+        btnAction.onclick = resetToLanding;
+
+        showView("results");
+        fireConfetti();
+      } else {
+        resultsIcon.innerHTML =
+          '<svg class="w-20 h-20 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
+          '<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>' +
+          '</svg>';
+        resultsTitle.textContent = "Try Again!";
+        resultsTitle.className = "text-3xl font-extrabold mb-4 text-accent-400";
+        scoreDisplay.textContent = score + " / 100";
+        scoreDisplay.className = "text-5xl font-extrabold text-white";
+        btnAction.textContent = "Try Again";
+        btnAction.onclick = resetToLanding;
+
+        showView("results");
+      }
+    }
+
+    // ============================================================
+    // CONFETTI
+    // ============================================================
+    function fireConfetti() {
+      const duration = 3000;
+      const end = Date.now() + duration;
+
+      (function frame() {
+        confetti({ particleCount: 4, angle: 60, spread: 55, origin: { x: 0, y: 0.7 } });
+        confetti({ particleCount: 4, angle: 120, spread: 55, origin: { x: 1, y: 0.7 } });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      })();
+    }
+
+    // ============================================================
+    // RESET
+    // ============================================================
+    function resetToLanding() {
+      questions = [];
+      currentIndex = 0;
+      correctAnswers = 0;
+      showView("landing");
+    }
+
+    // ============================================================
+    // UTILS
+    // ============================================================
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
