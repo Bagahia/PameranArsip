@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="id" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quiz Challenge</title>
+  <title>Kuis Pameran Arsip</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <style>
@@ -47,15 +47,15 @@
     <!-- CUSTOMIZATION: Place sponsor logos as assets/logo1.png, logo2.png, logo3.png, etc.
          The app auto-detects which files exist and displays them in a row.
          Remove or add files to control how many logos appear. -->
-    <div id="logo-container" class="mb-8 flex flex-wrap justify-center items-center gap-4"></div>
+    <div id="logo-container" class="mb-8 flex flex-wrap justify-center items-center gap-6"></div>
     <!-- CUSTOMIZATION: Change the title and subtitle text -->
-    <h1 class="text-4xl font-extrabold mb-3 glow-text text-white">Quiz Challenge</h1>
-    <p class="text-slate-400 text-lg mb-10">Test your knowledge with randomized questions. Each attempt is unique!</p>
+    <h1 class="text-4xl font-extrabold mb-3 glow-text text-white">Kuis Pameran Arsip</h1>
+    <p class="text-slate-400 text-lg mb-10">Jawab pertanyaanya dan dapatkan hadiah yang menarik</p>
     <!-- CUSTOMIZATION: Change the button text -->
     <button id="btn-start"
       onclick="startQuiz()"
       class="bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-10 rounded-2xl text-lg transition-all duration-200 btn-pulse cursor-pointer">
-      Start Quiz
+      Mulai Sekarang
     </button>
     <p id="landing-status" class="mt-4 text-slate-500 text-sm hidden"></p>
   </div>
@@ -64,7 +64,7 @@
   <div id="view-quiz" class="w-full max-w-2xl hidden">
     <div class="bg-surface-800 rounded-3xl p-6 md:p-8 shadow-2xl slide-up">
       <div class="flex items-center justify-between mb-6">
-        <span id="progress-text" class="text-sm font-semibold text-accent-400">Question 1 / 10</span>
+        <span id="progress-text" class="text-sm font-semibold text-accent-400">Soal 1 / 10</span>
         <span class="text-xs font-medium bg-surface-900 text-accent-400 px-3 py-1 rounded-full border border-accent-500/30">Target: 100</span>
       </div>
       <div class="w-full bg-surface-900 rounded-full h-2 mb-8">
@@ -81,7 +81,7 @@
       <div id="results-icon" class="mb-6 flex justify-center"></div>
       <h2 id="results-title" class="text-3xl font-extrabold mb-4"></h2>
       <div class="bg-surface-900 rounded-2xl py-6 px-4 mb-8 border border-slate-700/50">
-        <p class="text-slate-400 text-sm mb-1">Your Score</p>
+        <p class="text-slate-400 text-sm mb-1">Skor Anda</p>
         <p id="score-display" class="text-5xl font-extrabold text-white"></p>
       </div>
       <button id="btn-result-action"
@@ -141,7 +141,7 @@
               wrapper.className = "flex-shrink-0";
               wrapper.dataset.logoId = "logo" + this.dataset.logoNum;
 
-              this.className = "h-16 md:h-20 w-auto object-contain glow";
+              this.className = "h-20 md:h-28 max-w-[140px] w-auto object-contain glow";
               this.alt = "Sponsor " + this.dataset.logoNum;
               wrapper.appendChild(this);
               logoContainer.appendChild(wrapper);
@@ -195,10 +195,10 @@
     // ============================================================
     async function startQuiz() {
       btnStart.disabled = true;
-      btnStart.textContent = "Fetching Questions...";
+      btnStart.textContent = "Memuat Soal...";
       landingStatus.classList.remove("hidden");
       landingStatus.classList.remove("text-red-400");
-      landingStatus.textContent = "Connecting to server...";
+      landingStatus.textContent = "Menghubungkan ke server...";
 
       try {
         const resp = await fetch(API_URL);
@@ -219,11 +219,11 @@
         showView("quiz");
         renderQuestion();
       } catch (err) {
-        landingStatus.textContent = "Failed to load questions. Check your API configuration.";
+        landingStatus.textContent = "Gagal Memuat. Cek API";
         landingStatus.classList.add("text-red-400");
       } finally {
         btnStart.disabled = false;
-        btnStart.textContent = "Start Quiz";
+        btnStart.textContent = "Mulai Kuis";
       }
     }
 
@@ -232,7 +232,7 @@
     // ============================================================
     function renderQuestion() {
       const q = questions[currentIndex];
-      progressText.textContent = "Question " + (currentIndex + 1) + " / " + questions.length;
+      progressText.textContent = "Soal " + (currentIndex + 1) + " / " + questions.length;
       progressBar.style.width = ((currentIndex + 1) / questions.length * 100) + "%";
       questionText.textContent = q.question;
 
@@ -316,11 +316,11 @@
           '<svg class="w-20 h-20 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
           '<path d="M12 2l2.09 6.26L21 9.27l-5 4.87L17.18 22 12 18.56 6.82 22 8 14.14l-5-4.87 6.91-1.01L12 2z"/>' +
           '<circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.3"/></svg>';
-        resultsTitle.textContent = "Perfect Score!";
+        resultsTitle.textContent = "Skor Sempurna!";
         resultsTitle.className = "text-3xl font-extrabold mb-4 text-yellow-400";
         scoreDisplay.textContent = "100 / 100";
         scoreDisplay.className = "text-5xl font-extrabold text-yellow-400";
-        btnAction.textContent = "Back to Home";
+        btnAction.textContent = "Kembali ke Beranda";
         btnAction.onclick = resetToLanding;
 
         showView("results");
@@ -330,11 +330,11 @@
           '<svg class="w-20 h-20 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
           '<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>' +
           '</svg>';
-        resultsTitle.textContent = "Try Again!";
+        resultsTitle.textContent = "Coba Lagi!";
         resultsTitle.className = "text-3xl font-extrabold mb-4 text-accent-400";
         scoreDisplay.textContent = score + " / 100";
         scoreDisplay.className = "text-5xl font-extrabold text-white";
-        btnAction.textContent = "Try Again";
+        btnAction.textContent = "Coba Lagi";
         btnAction.onclick = resetToLanding;
 
         showView("results");
