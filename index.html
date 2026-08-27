@@ -67,7 +67,7 @@
   <div id="view-quiz" class="w-full max-w-2xl hidden">
     <div class="bg-surface-800 rounded-3xl p-6 md:p-8 shadow-2xl slide-up">
       <div class="flex items-center justify-between mb-6">
-        <div id="quiz-logo" class="flex-shrink-0"></div>
+        <div id="quiz-logo" class="flex-shrink-0 flex items-center gap-2"></div>
         <span id="progress-text" class="text-sm font-semibold text-accent-400">Soal 1 / 10</span>
         <span class="text-xs font-medium bg-surface-900 text-accent-400 px-3 py-1 rounded-full border border-accent-500/30">Target: 100</span>
       </div>
@@ -82,6 +82,7 @@
   <!-- ==================== RESULTS VIEW ==================== -->
   <div id="view-results" class="w-full max-w-lg text-center hidden">
     <div id="results-card" class="bg-surface-800 rounded-3xl p-8 md:p-10 shadow-2xl slide-up">
+      <div id="results-logo" class="mb-6 flex justify-center items-center gap-3"></div>
       <div id="results-icon" class="mb-6 flex justify-center"></div>
       <p id="results-greeting" class="text-xl font-bold text-white mb-2"></p>
       <h2 id="results-title" class="text-3xl font-extrabold mb-4"></h2>
@@ -130,6 +131,7 @@
     const optionsContainer = document.getElementById("options-container");
     const logoContainer = document.getElementById("logo-container");
     const quizLogo = document.getElementById("quiz-logo");
+    const resultsLogo = document.getElementById("results-logo");
 
     // ============================================================
     // SPONSOR LOGOS — Auto-detects assets/logo1.png through logo10.png
@@ -198,8 +200,12 @@
 
     function updateQuizLogos() {
       if (allLogoSrcs.length > 0) {
-        quizLogo.innerHTML = allLogoSrcs.map(function(src) {
+        var html = allLogoSrcs.map(function(src) {
           return '<img src="' + src + '" alt="Sponsor" class="h-6 md:h-8 max-w-[60px] w-auto object-contain" />';
+        }).join('');
+        quizLogo.innerHTML = html;
+        resultsLogo.innerHTML = allLogoSrcs.map(function(src) {
+          return '<img src="' + src + '" alt="Sponsor" class="h-8 md:h-10 max-w-[80px] w-auto object-contain" />';
         }).join('');
       }
     }
