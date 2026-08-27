@@ -137,7 +137,7 @@
     // ============================================================
     const MAX_LOGOS = 10;
     const LOGO_EXTENSIONS = ["png", "svg", "jpg", "jpeg", "webp", "gif"];
-    let firstLogoSrc = null; // store first detected logo for quiz view
+    let allLogoSrcs = []; // store all detected logos for quiz view
 
     function loadSponsorLogos() {
       let loaded = 0;
@@ -161,11 +161,9 @@
               wrapper.appendChild(this);
               logoContainer.appendChild(wrapper);
 
-              // Store first logo for quiz view
-              if (!firstLogoSrc) {
-                firstLogoSrc = src;
-                updateQuizLogo();
-              }
+              // Store logo source for quiz view
+              allLogoSrcs.push(src);
+              updateQuizLogos();
             }
             checked++;
             if (checked === MAX_LOGOS * LOGO_EXTENSIONS.length) finishLogoLoad();
@@ -198,9 +196,11 @@
       }
     }
 
-    function updateQuizLogo() {
-      if (firstLogoSrc) {
-        quizLogo.innerHTML = '<img src="' + firstLogoSrc + '" alt="Sponsor" class="h-6 md:h-8 max-w-[80px] w-auto object-contain" />';
+    function updateQuizLogos() {
+      if (allLogoSrcs.length > 0) {
+        quizLogo.innerHTML = allLogoSrcs.map(function(src) {
+          return '<img src="' + src + '" alt="Sponsor" class="h-6 md:h-8 max-w-[60px] w-auto object-contain" />';
+        }).join('');
       }
     }
 
@@ -372,13 +372,16 @@
 
       buttons.forEach(function (b) { b.disabled = true; });
 
+      // Only highlight the selected answer (no correct answer reveal)
       buttons.forEach(function (b, i) {
-        if (i === q.correctIndex) {
-          b.className = b.className.replace("border-slate-600/40", "border-green-500");
-          b.className = b.className.replace("bg-surface-900", "bg-green-500/10");
-        } else if (i === selectedIndex) {
-          b.className = b.className.replace("border-slate-600/40", "border-red-500");
-          b.className = b.className.replace("bg-surface-900", "bg-red-500/10");
+        if (i === selectedIndex) {
+          if (selectedIndex === q.correctIndex) {
+            b.className = b.className.replace("border-slate-600/40", "border-green-500");
+            b.className = b.className.replace("bg-surface-900", "bg-green-500/10");
+          } else {
+            b.className = b.className.replace("border-slate-600/40", "border-red-500");
+            b.className = b.className.replace("bg-surface-900", "bg-red-500/10");
+          }
         }
       });
 
@@ -410,9 +413,8 @@
       const scoreDisplay = document.getElementById("score-display");
       const btnAction    = document.getElementById("btn-result-action");
 
-      resultsGreeting.textContent = "Selamat, " + userName + "!";
-
       if (isPerfect) {
+        resultsGreeting.textContent = "Selamat, " + userName + "!";
         resultsIcon.innerHTML =
           '<svg class="w-20 h-20 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
           '<path d="M12 2l2.09 6.26L21 9.27l-5 4.87L17.18 22 12 18.56 6.82 22 8 14.14l-5-4.87 6.91-1.01L12 2z"/>' +
@@ -427,6 +429,7 @@
         showView("results");
         fireConfetti();
       } else {
+        resultsGreeting.textContent = "Semangat, " + userName + "!";
         resultsIcon.innerHTML =
           '<svg class="w-20 h-20 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
           '<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>' +
