@@ -69,10 +69,16 @@
       <div class="flex items-center justify-between mb-6">
         <div id="quiz-logo" class="flex-shrink-0 flex items-center gap-2"></div>
         <span id="progress-text" class="text-sm font-semibold text-accent-400">Soal 1 / 10</span>
-        <span class="text-xs font-medium bg-surface-900 text-accent-400 px-3 py-1 rounded-full border border-accent-500/30">Target: 100</span>
+        <div class="flex items-center gap-2">
+          <span id="timer-text" class="text-sm font-bold text-white">5</span>
+          <span class="text-xs font-medium bg-surface-900 text-accent-400 px-3 py-1 rounded-full border border-accent-500/30">Target: 100</span>
+        </div>
       </div>
-      <div class="w-full bg-surface-900 rounded-full h-2 mb-8">
+      <div class="w-full bg-surface-900 rounded-full h-2 mb-2">
         <div id="progress-bar" class="bg-accent-500 h-2 rounded-full transition-all duration-500" style="width:10%"></div>
+      </div>
+      <div class="w-full bg-surface-900 rounded-full h-1.5 mb-8">
+        <div id="timer-bar" class="bg-yellow-500 h-1.5 rounded-full transition-all duration-1000 linear" style="width:100%"></div>
       </div>
       <h2 id="question-text" class="text-xl md:text-2xl font-bold text-white mb-8 leading-relaxed"></h2>
       <div id="options-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
@@ -115,6 +121,9 @@
     let currentIndex = 0;
     let correctAnswers = 0;
     let userName = "";
+    let timerInterval = null;
+    let timeLeft = 5;
+    const QUESTION_TIME = 5; // seconds per question
 
     // ============================================================
     // DOM REFERENCES
@@ -132,6 +141,8 @@
     const logoContainer = document.getElementById("logo-container");
     const quizLogo = document.getElementById("quiz-logo");
     const resultsLogo = document.getElementById("results-logo");
+    const timerText = document.getElementById("timer-text");
+    const timerBar = document.getElementById("timer-bar");
 
     // ============================================================
     // SPONSOR LOGOS — Auto-detects assets/logo1.png through logo10.png
@@ -221,6 +232,65 @@
       viewResults.classList.add("hidden");
       const map = { landing: viewLanding, quiz: viewQuiz, results: viewResults };
       map[name].classList.remove("hidden");
+    }
+
+    // ============================================================
+    // TIMER
+    // ============================================================
+    function startTimer() {
+      clearTimer();
+      timeLeft = QUESTION_TIME;
+      timerText.textContent = timeLeft;
+      timerText.className = "text-sm font-bold text-white";
+      timerBar.style.transition = "none";
+      timerBar.style.width = "100%";
+      void timerBar.offsetWidth;
+      timerBar.style.transition = "width " + QUESTION_TIME + "s linear";
+      timerBar.style.width = "0%";
+
+      timerInterval = setInterval(function () {
+        timeLeft--;
+        timerText.textContent = timeLeft;
+        if (timeLeft <= 2) {
+          timerText.className = "text-sm font-bold text-red-400";
+        }
+        if (timeLeft <= 0) {
+          clearTimer();
+          handleTimeout();
+        }
+      }, 1000);
+    }
+
+    function clearTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function handleTimeout() {
+      const buttons = optionsContainer.querySelectorAll("button");
+      buttons.forEach(function (b) { b.disabled = true; });
+
+      // Show time's up feedback
+      timerText.textContent = "0";
+      timerBar.style.transition = "none";
+      timerBar.style.width = "0%";
+
+      // Brief flash on question text
+      questionText.className = "text-xl md:text-2xl font-bold text-red-400 mb-8 leading-relaxed";
+      setTimeout(function () {
+        questionText.className = "text-xl md:text-2xl font-bold text-white mb-8 leading-relaxed";
+      }, 300);
+
+      setTimeout(function () {
+        currentIndex++;
+        if (currentIndex < questions.length) {
+          renderQuestion();
+        } else {
+          showResults();
+        }
+      }, 600);
     }
 
     // ============================================================
@@ -367,12 +437,16 @@
       card.classList.remove("slide-up");
       void card.offsetWidth;
       card.classList.add("slide-up");
+
+      // Start timer for this question
+      startTimer();
     }
 
     // ============================================================
     // HANDLE ANSWER
     // ============================================================
     function handleAnswer(selectedIndex) {
+      clearTimer(); // Stop timer when answer is selected
       const q = questions[currentIndex];
       const buttons = optionsContainer.querySelectorAll("button");
 
@@ -469,6 +543,7 @@
     // RESET
     // ============================================================
     function resetToLanding() {
+      clearTimer();
       questions = [];
       currentIndex = 0;
       correctAnswers = 0;
