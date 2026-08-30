@@ -10,9 +10,9 @@
 
 ---
 
-## Step 0: Generate a Secure API Key
+## Step 0: Generate Secure API Keys
 
-You need a random secret key to protect your API endpoint.
+You need two random secret keys: one for the API, one for admin access.
 
 ### macOS / Linux
 ```bash
@@ -24,7 +24,11 @@ openssl rand -hex 32
 -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 64 | ForEach-Object { [char]$_ })
 ```
 
-Copy the output — this is your `API_SECRET_KEY`. You'll use it in Steps 2 and 3.
+Generate **two** keys:
+1. `API_SECRET_KEY` — protects the quiz API endpoint
+2. `ADMIN_PASSWORD` — protects the admin reset panel
+
+Copy both — you'll use them in Steps 2 and 3.
 
 ---
 
@@ -45,10 +49,16 @@ Copy the output — this is your `API_SECRET_KEY`. You'll use it in Steps 2 and 
    | Capital of France? | London | Berlin | Paris | Madrid | 2 |
 
    - `CorrectIndex` is 0-based: **0** = OptionA, **1** = OptionB, **2** = OptionC, **3** = OptionD.
+   - You can also use letters: **A** = OptionA, **B** = OptionB, **C** = OptionC, **D** = OptionD.
    - Add as many rows as you want (supports 100+).
    - You can edit these rows at any time — changes take effect immediately.
 
-4. **Keep the sheet private.** In Google Drive, right-click the sheet → Share → ensure access is **Restricted (Only you)**. Do NOT add anyone else.
+4. **Do NOT create the Attempts tab manually.** The app will auto-create it on the first quiz submission. If you want to create it now, create a third sheet named **Attempts** with these headers in row 1:
+
+   | timestamp | name | fingerprint | score | totalQuestions | duration | questionTimes | tabSwitchCount | date | flagged | adminReset |
+   |-----------|------|-------------|-------|---------------|----------|---------------|----------------|------|---------|------------|
+
+5. **Keep the sheet private.** In Google Drive, right-click the sheet → Share → ensure access is **Restricted (Only you)**. Do NOT add anyone else.
 
 ---
 
@@ -59,20 +69,26 @@ Copy the output — this is your `API_SECRET_KEY`. You'll use it in Steps 2 and 
 3. **Set your API key** — edit line 3 of `Code.gs`:
 
    ```js
-   const API_SECRET_KEY = "paste_your_generated_key_here";
+   const API_SECRET_KEY = "paste_your_generated_api_key_here";
    ```
 
-   Use the key you generated in Step 0.
+4. **Set your admin password** — edit line 4 of `Code.gs`:
 
-4. Click **Save** (floppy disk icon or Ctrl+S).
-5. Click **Deploy → New deployment**.
-6. Configure the deployment:
+   ```js
+   const ADMIN_PASSWORD = "paste_your_generated_admin_password_here";
+   ```
+
+   Use the two keys you generated in Step 0.
+
+5. Click **Save** (floppy disk icon or Ctrl+S).
+6. Click **Deploy → New deployment**.
+7. Configure the deployment:
    - **Type:** Select "Web app"
    - **Description:** "Quiz API" (or anything you like)
    - **Execute as:** Me (your email)
    - **Who has access:** Anyone
-7. Click **Deploy**.
-8. **Copy the Web app URL** — it looks like:
+8. Click **Deploy**.
+9. **Copy the Web app URL** — it looks like:
    ```
    https://script.google.com/macros/s/AKfycbx...ABC123.../exec
    ```
@@ -93,7 +109,7 @@ Your secrets live here — **never** in `index.html` or any committed file.
    | Key | Value |
    |-----|-------|
    | `GOOGLE_SHEET_API_URL` | The Web app URL from Step 2 |
-   | `GOOGLE_SHEET_API_KEY` | The same API key you set in `Code.gs` |
+   | `GOOGLE_SHEET_API_KEY` | The API key you set in `Code.gs` (line 3) |
 
 4. Click **Save** for each.
 
@@ -133,12 +149,6 @@ The app auto-detects and displays sponsor logos from the `assets/` folder.
 
 ### Edit Text & Colors
 Open `index.html` and look for the `CUSTOMIZATION` comment block near the top:
-
-```html
-<!-- ============================================================
-     CUSTOMIZATION — Edit these values to brand your quiz app
-     ============================================================ -->
-```
 
 | What to change | Where | Example |
 |----------------|-------|---------|
@@ -262,6 +272,49 @@ Test the full app locally before deploying.
 
 ---
 
+## Security Features
+
+### What's Included
+
+| Layer | Feature | What It Does |
+|-------|---------|-------------|
+| 1 | Device Fingerprint | Identifies browser via FingerprintJS. Stored in localStorage. |
+| 2 | Timing Tracking | Records quiz duration and per-question times. |
+| 3 | Tab-Switch Detection | Counts when user leaves quiz tab. Shows warning. |
+| 4 | Screenshot Prevention | Blocks right-click, PrintScreen, Ctrl+P during quiz. |
+| 5 | Server Submission | Saves score + metadata to Google Sheets on completion. |
+| 6 | Daily Limit | Blocks retakes if name+fingerprint already attempted today. |
+| 7 | Admin Override | Password-protected admin page to reset user attempts. |
+
+### Accessing the Admin Panel
+
+Navigate to:
+```
+https://<your-site>.netlify.app/?admin=true
+```
+
+Enter your admin password (set in `Code.gs` line 4) and the user's name to reset their attempt.
+
+### Viewing Quiz Attempts
+
+1. Open your Google Sheet
+2. Go to the **Attempts** tab
+3. Review submissions with:
+   - Score and duration
+   - Tab switch count
+   - Flagged status (TRUE = suspicious activity)
+   - Admin reset status
+
+### Flagged Submissions
+
+The system automatically flags submissions with:
+- Average time per question < 3 seconds (possible bot/cheat)
+- More than 5 tab switches (possible screenshotting)
+
+Flagged submissions are marked in the Attempts sheet for admin review.
+
+---
+
 ## Managing Questions
 
 After setup, you can add, edit, or remove questions anytime:
@@ -300,6 +353,20 @@ To change the number of questions per quiz:
 ### Questions not updating after editing the sheet
 - The Apps Script may be caching. Try redeploying the Web App (Deploy → Manage deployments → Edit → New version).
 
+### "Sudah Mengerjakan" shows incorrectly
+- Fingerprint may have changed (browser update, incognito mode, etc.)
+- Use admin panel (`?admin=true`) to reset the user's attempt.
+
+### Admin reset not working
+- Verify the password matches `ADMIN_PASSWORD` in `Code.gs` (line 4).
+- Ensure the user's name matches exactly (case-insensitive).
+- Check the Attempts sheet for the adminReset column.
+
+### Score not saving
+- Check Netlify Function logs for errors.
+- Verify Apps Script is deployed and accessible.
+- Check if the Attempts sheet exists (auto-created on first submission).
+
 ---
 
 ## Project Structure
@@ -316,6 +383,7 @@ PameranArsip/
 │   ├── logo1.png               ← Sponsor logo 1 (optional)
 │   ├── logo2.png               ← Sponsor logo 2 (optional)
 │   └── ...                     ← Up to logo10 in any format
+├── README.md                   ← Full documentation
 └── SETUP.md                    ← This file
 ```
 
@@ -323,7 +391,11 @@ PameranArsip/
 
 - [ ] Google Sheet sharing is **Restricted** (only you).
 - [ ] `API_SECRET_KEY` in `Code.gs` is a strong random string (Step 0).
-- [ ] `GOOGLE_SHEET_API_KEY` env var in Netlify matches the key in `Code.gs`.
+- [ ] `ADMIN_PASSWORD` in `Code.gs` is a different strong random string (Step 0).
+- [ ] `GOOGLE_SHEET_API_KEY` env var in Netlify matches `API_SECRET_KEY` in `Code.gs`.
 - [ ] `GOOGLE_SHEET_API_URL` env var holds your Web app URL.
 - [ ] **No secrets** in `index.html`, `netlify.toml`, or any committed file.
 - [ ] Apps Script Web App deployed as **Execute as: Me** + **Anyone** access.
+- [ ] Attempts sheet is auto-created on first submission (or manually created with correct headers).
+- [ ] Admin panel accessible at `?admin=true` URL parameter.
+- [ ] Review Attempts sheet regularly for flagged submissions.

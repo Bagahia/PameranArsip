@@ -10,34 +10,89 @@ exports.handler = async function (event) {
     };
   }
 
-  const url = API_URL + "?key=" + encodeURIComponent(API_KEY);
+  // --- GET: Fetch questions or check attempt ---
+  if (event.httpMethod === "GET") {
+    const queryParams = new URLSearchParams(event.queryStringParameters || {});
+    const action = queryParams.get("action");
 
-  // Add timeout (8 seconds)
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+    let url = API_URL + "?key=" + encodeURIComponent(API_KEY);
 
-  try {
-    const resp = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-    const data = await resp.json();
+    if (action === "checkAttempt") {
+      const name = queryParams.get("name") || "";
+      const fingerprint = queryParams.get("fingerprint") || "";
+      url += "&action=checkAttempt&name=" + encodeURIComponent(name) + "&fingerprint=" + encodeURIComponent(fingerprint);
+    }
 
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=60" // cache 60s in browser
-      },
-      body: JSON.stringify(data)
-    };
-  } catch (err) {
-    clearTimeout(timeout);
-    const message = err.name === "AbortError"
-      ? "Upstream request timed out"
-      : "Failed to fetch questions from upstream";
-    return {
-      statusCode: 502,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: message })
-    };
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await resp.json();
+
+      return {
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store"
+        },
+        body: JSON.stringify(data)
+      };
+    } catch (err) {
+      clearTimeout(timeout);
+      const message = err.name === "AbortError"
+        ? "Upstream request timed out"
+        : "Failed to fetch from upstream";
+      return {
+        statusCode: 502,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: message })
+      };
+    }
   }
+
+  // --- POST: Submit quiz or admin actions ---
+  if (event.httpMethod === "POST") {
+    const url = API_URL + "?key=" + encodeURIComponent(API_KEY);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: event.body,
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      const data = await resp.json();
+
+      return {
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store"
+        },
+        body: JSON.stringify(data)
+      };
+    } catch (err) {
+      clearTimeout(timeout);
+      const message = err.name === "AbortError"
+        ? "Upstream request timed out"
+        : "Failed to submit to upstream";
+      return {
+        statusCode: 502,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: message })
+      };
+    }
+  }
+
+  return {
+    statusCode: 405,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ error: "Method not allowed" })
+  };
 };

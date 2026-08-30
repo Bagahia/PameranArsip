@@ -10,15 +10,15 @@ Deployed on Netlify: `https://<your-site>.netlify.app`
 
 ```
 Browser (SPA)
-    ↓ fetch
+    ↓ fetch (GET/POST)
 Netlify Function (server-side proxy) ← reads env vars
     ↓ fetch with API key injected
 Google Apps Script (secured API gateway)
-    ↓ reads
-Google Sheet (private database)
+    ↓ reads/writes
+Google Sheet (private database: Settings + Questions + Attempts)
 ```
 
-**Security model:** The Google Sheet is private. The API key is stored only in Netlify env vars and injected server-side by the Netlify Function. The browser never sees the key or the Sheet URL.
+**Security model:** The Google Sheet is private. The API key is stored only in Netlify env vars and injected server-side by the Netlify Function. The browser never sees the key or the Sheet URL. Quiz attempts are validated server-side with device fingerprinting + daily limits.
 
 ## Tech Stack
 
@@ -26,16 +26,17 @@ Google Sheet (private database)
 |-------|-----------|
 | Frontend | HTML5, Tailwind CSS (CDN), Vanilla ES6+ JavaScript |
 | Effects | Canvas-Confetti (CDN) — confetti burst on perfect score |
+| Fingerprint | FingerprintJS (CDN) — device identification for attempt tracking |
 | Proxy | Netlify Functions (Node.js) — `/.netlify/functions/quiz` |
-| Backend | Google Apps Script — `doGet(e)` returns JSON |
-| Database | Google Sheets (2 tabs: Settings + Questions) |
+| Backend | Google Apps Script — `doGet(e)` for questions, `doPost(e)` for submissions |
+| Database | Google Sheets (3 tabs: Settings + Questions + Attempts) |
 | Hosting | Netlify (static + serverless functions) |
 
 ## Project Structure
 
 ```
 PameranArsip/
-├── index.html                  ← Single-page app (all 3 views in one file)
+├── index.html                  ← Single-page app (all views in one file)
 ├── Code.gs                     ← Google Apps Script backend (paste into script.google.com)
 ├── netlify.toml                ← Netlify config (functions dir, publish dir)
 ├── netlify/
@@ -52,7 +53,7 @@ PameranArsip/
 
 ## SPA Views (State Machine)
 
-The app has 3 views, all in `index.html`. JavaScript toggles visibility with `showView()`.
+The app has 5 views, all in `index.html`. JavaScript toggles visibility with `showView()`.
 
 ### View 1: Landing (`#view-landing`)
 - Sponsor logos auto-detected from `assets/logo1.png` through `logo10.png`
@@ -63,19 +64,72 @@ The app has 3 views, all in `index.html`. JavaScript toggles visibility with `sh
 - Loading state: button text changes to "Memuat Soal..." while fetching
 
 ### View 2: Quiz (`#view-quiz`)
+- **Tab switch warning banner**: Shows when user leaves quiz tab
 - **Sponsor logo**: First detected logo displayed in header (always visible during quiz)
 - Header: progress counter ("Soal 3 / 10") + target indicator ("Target: 100")
 - Progress bar animates per question
 - Question card with 4 option buttons (A, B, C, D badges)
 - On click: highlights correct (green) / incorrect (red), then advances after 600ms
-- **Client-side shuffle**: Questions shuffled in browser for instant replay
+- **No-select CSS**: Prevents text selection on quiz content
 
 ### View 3: Results (`#view-results`)
 - **Personalized greeting**: "Selamat, [Name]!" displayed above score
 - Score normalized to 100-point scale: `Math.round((correctAnswers / totalQuestions) * 100)`
+- **Timing metadata**: Shows total duration and tab switch count
+- **Submission status**: Shows whether score was saved to server
 - **Score == 100:** Trophy icon, "Skor Sempurna!", confetti burst, "Kembali ke Beranda" button
 - **Score < 100:** Retry icon, "Coba Lagi!", score display, "Coba Lagi" button
 - Both buttons call `resetToLanding()` which resets all state and clears name
+
+### View 4: Already Attempted (`#view-attempted`)
+- Shown when user has already taken the quiz today
+- Displays previous score and personalized message
+- "Kembali ke Beranda" button
+
+### View 5: Admin (`#view-admin`)
+- Accessible via `?admin=true` URL parameter
+- Password-protected admin panel for resetting user attempts
+- Enter admin password and target user name to allow retake
+
+## Security Features (7 Layers)
+
+### Layer 1: Device Fingerprinting
+- Uses FingerprintJS to generate a unique browser ID
+- Stored in `localStorage` after first quiz attempt
+- Combined with name for server-side duplicate detection
+
+### Layer 2: Quiz Timing & Metadata Tracking
+- Records `quizStartTime` when quiz begins, calculates `totalDuration` on completion
+- Tracks per-question response times in `questionTimes[]` array
+- Flagged if average time per question < 3 seconds (potential bot/cheat)
+
+### Layer 3: Tab/Window Switch Detection
+- Listens for `visibilitychange` and `blur` events
+- Counts tab switches in `tabSwitchCount`
+- Shows warning banner when user leaves quiz tab
+- Stored in submission data for admin review
+
+### Layer 4: Screenshot Prevention (Basic Deterrent)
+- Disables right-click via `contextmenu` event during quiz
+- Blocks `PrintScreen`, `Ctrl+Shift+S`, `Ctrl+P`, `Ctrl+U`, `F12` keyboard shortcuts
+- CSS `user-select: none` on quiz content
+- **Note**: Determined cheaters can bypass this, but it stops casual screenshotting
+
+### Layer 5: Server-Side Score Submission
+- On quiz completion, POST to Netlify function with full metadata
+- Google Apps Script writes to "Attempts" sheet
+- Prevents client-side score manipulation
+
+### Layer 6: One-Attempt-Per-Day Enforcement
+- Before starting quiz, checks server: "Has this name+fingerprint attempted today?"
+- If attempt exists: shows "Sudah Mengerjakan" view with previous score
+- Stored in Google Sheet "Attempts" tab with date column for daily filtering
+
+### Layer 7: Admin Override Password
+- Hidden admin page at `?admin=true` URL parameter
+- Admin enters password (set as `ADMIN_PASSWORD` in Code.gs)
+- Can search by name and reset their attempt for today
+- Sets `adminReset = TRUE` in Attempts sheet (original record preserved for audit)
 
 ## Google Apps Script Backend (`Code.gs`)
 
@@ -98,15 +152,25 @@ Cell B1 controls how many questions per quiz (editable by admin anytime).
   - Legacy numeric format still works for backward compatibility
 - Supports 1000+ rows
 
+**Attempts tab (auto-created):**
+| timestamp | name | fingerprint | score | totalQuestions | duration | questionTimes | tabSwitchCount | date | flagged | adminReset |
+|-----------|------|-------------|-------|---------------|----------|---------------|----------------|------|---------|------------|
+
+- `flagged`: TRUE if suspicious activity detected (fast time or many tab switches)
+- `adminReset`: TRUE if admin allowed this user to retake
+
 ### Logic Flow
+
+**GET requests (`doGet`):**
 1. Validate `e.parameter.key` against `API_SECRET_KEY` → 403 if invalid
-2. Read `QuestionCount` from Settings sheet (fallback: 10)
-3. Check in-memory cache (5 min TTL) — skip sheet read if cached
-4. Read all rows from Questions sheet (if not cached)
-5. Parse `CorrectIndex` — supports A/B/C/D letters or 0/1/2/3 numbers
-6. Fisher-Yates shuffle all questions
-7. Slice to `QuestionCount`
-8. Return JSON with `ContentService.MimeType.JSON`
+2. If `action=checkAttempt`: check Attempts sheet for today's attempt by name+fingerprint
+3. Otherwise: return quiz questions (read from cache or sheet, shuffle, slice)
+
+**POST requests (`doPost`):**
+1. Validate `e.parameter.key` against `API_SECRET_KEY` → 403 if invalid
+2. Parse JSON body for `action` field
+3. If `action=submitQuiz`: write attempt to Attempts sheet
+4. If `action=adminReset`: validate `adminPassword`, mark attempts as reset
 
 ### Deployment
 - Deploy as Web App → Execute as: Me → Who has access: Anyone
@@ -119,7 +183,11 @@ Reads two env vars:
 - `GOOGLE_SHEET_API_URL` — the Apps Script Web app URL
 - `GOOGLE_SHEET_API_KEY` — the secret API key
 
-Fetches the Apps Script URL with `?key=<API_KEY>` and returns the JSON response. Sets `Cache-Control: no-store` to prevent caching.
+**GET requests:** Forwards to Apps Script with `?key=<API_KEY>` and optional `action=checkAttempt` params.
+
+**POST requests:** Forwards JSON body to Apps Script with `?key=<API_KEY>`.
+
+Sets `Cache-Control: no-store` to prevent caching of attempt data.
 
 ## Sponsor Logo System
 
@@ -176,6 +244,17 @@ accent: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
 2. Deploy → Manage deployments → Edit → New version → Deploy
 3. No frontend changes needed
 
+### Reset a user's quiz attempt (Admin)
+1. Navigate to `https://<your-site>.netlify.app/?admin=true`
+2. Enter admin password and target user name
+3. Click "Reset Percobaan"
+4. User can now retake the quiz today
+
+### View quiz attempts
+1. Open your Google Sheet
+2. Go to the **Attempts** tab
+3. Review all submissions with scores, timing, and flagged status
+
 ## Performance Optimization
 
 ### Caching Strategy (3 Layers)
@@ -210,6 +289,9 @@ accent: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
 | Logos not showing | Files not in assets/ or wrong naming | Check filename is `logo1.png` etc. |
 | Questions not updating | Caching in Apps Script or browser | Wait 5 min for cache to expire, or redeploy Apps Script |
 | Name input not working | Browser JS disabled | Enable JavaScript in browser settings |
+| "Sudah Mengerjakan" shows incorrectly | Fingerprint mismatch | Clear localStorage and retry, or use admin reset |
+| Admin reset fails | Wrong password | Ensure `ADMIN_PASSWORD` in Code.gs matches what you enter |
+| Score not saving | Network error or Apps Script issue | Check Function logs in Netlify dashboard |
 
 ## Git & Deployment
 

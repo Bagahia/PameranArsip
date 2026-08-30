@@ -6,8 +6,8 @@
   <title>Kuis Pameran Arsip</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.min.js"></script>
   <style>
-    <!-- CUSTOMIZATION: Change font by swapping "Inter" for another Google Font (e.g., Poppins, Roboto) -->
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     body { font-family: 'Inter', sans-serif; }
     .glow { filter: drop-shadow(0 0 18px rgba(99,102,241,0.6)); }
@@ -23,6 +23,12 @@
     .slide-up { animation: slideUp 0.5s ease-out; }
     @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
     .confetti-full { position: fixed; inset: 0; pointer-events: none; z-index: 9999; }
+    .quiz-no-select { user-select: none; -webkit-user-select: none; }
+    .tab-warning { animation: tabWarn 0.5s ease-out; }
+    @keyframes tabWarn {
+      0% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-20px); }
+    }
   </style>
   <script>
     tailwind.config = {
@@ -30,7 +36,6 @@
       theme: {
         extend: {
           colors: {
-            <!-- CUSTOMIZATION: Change these hex values to rebrand the theme. Use https://tailwindcss.com/docs/customizing-colors -->
             surface: { 800: '#1e293b', 900: '#0f172a', 950: '#020617' },
             accent:  { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
           }
@@ -42,19 +47,12 @@
 <body class="bg-surface-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
 
   <!-- ==================== LANDING VIEW ==================== -->
-  <!-- CUSTOMIZATION: Edit title, subtitle, button text, and logos below -->
   <div id="view-landing" class="w-full max-w-lg text-center fade-in">
-    <!-- CUSTOMIZATION: Place sponsor logos as assets/logo1.png, logo2.png, logo3.png, etc.
-         The app auto-detects which files exist and displays them in a row.
-         Remove or add files to control how many logos appear. -->
     <div id="logo-container" class="mb-8 flex flex-wrap justify-center items-center gap-6"></div>
-    <!-- CUSTOMIZATION: Change the title and subtitle text -->
     <h1 class="text-4xl font-extrabold mb-3 glow-text text-white">Kuis Pameran Arsip</h1>
     <p class="text-slate-400 text-lg mb-6">Jawab pertanyaanya dan dapatkan hadiah yang menarik</p>
-    <!-- Name input (required) -->
     <input id="input-name" type="text" placeholder="Masukkan nama Anda..."
       class="w-full px-5 py-4 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-lg mb-6 transition-all duration-200" />
-    <!-- CUSTOMIZATION: Change the button text -->
     <button id="btn-start"
       onclick="startQuiz()"
       class="bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-10 rounded-2xl text-lg transition-all duration-200 btn-pulse cursor-pointer">
@@ -65,7 +63,10 @@
 
   <!-- ==================== QUIZ VIEW ==================== -->
   <div id="view-quiz" class="w-full max-w-2xl hidden">
-    <div class="bg-surface-800 rounded-3xl p-6 md:p-8 shadow-2xl slide-up">
+    <div id="tab-warning-banner" class="hidden bg-red-500/20 border border-red-500/50 rounded-xl px-4 py-3 mb-4 text-center">
+      <p class="text-red-400 text-sm font-semibold">Anda terdeteksi meninggalkan kuis. Pelanggaran tercatat.</p>
+    </div>
+    <div class="bg-surface-800 rounded-3xl p-6 md:p-8 shadow-2xl slide-up quiz-no-select">
       <div class="flex items-center justify-between mb-6">
         <div id="quiz-logo" class="flex-shrink-0 flex items-center gap-2"></div>
         <span id="progress-text" class="text-sm font-semibold text-accent-400">Soal 1 / 10</span>
@@ -95,6 +96,10 @@
       <div class="bg-surface-900 rounded-2xl py-6 px-4 mb-8 border border-slate-700/50">
         <p class="text-slate-400 text-sm mb-1">Skor Anda</p>
         <p id="score-display" class="text-5xl font-extrabold text-white"></p>
+        <p id="results-meta" class="text-slate-500 text-xs mt-2"></p>
+      </div>
+      <div id="results-submission-status" class="hidden mb-4">
+        <p id="submission-status-text" class="text-sm"></p>
       </div>
       <button id="btn-result-action"
         class="bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-10 rounded-2xl text-lg transition-all duration-200 cursor-pointer">
@@ -102,9 +107,54 @@
     </div>
   </div>
 
+  <!-- ==================== ALREADY ATTEMPTED VIEW ==================== -->
+  <div id="view-attempted" class="w-full max-w-lg text-center hidden">
+    <div class="bg-surface-800 rounded-3xl p-8 md:p-10 shadow-2xl slide-up">
+      <div class="mb-6 flex justify-center">
+        <svg class="w-20 h-20 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+      </div>
+      <h2 class="text-3xl font-extrabold mb-4 text-yellow-400">Sudah Mengerjakan</h2>
+      <p id="attempted-message" class="text-slate-400 text-lg mb-6"></p>
+      <div class="bg-surface-900 rounded-2xl py-4 px-4 mb-6 border border-slate-700/50">
+        <p class="text-slate-400 text-sm mb-1">Skor Sebelumnya</p>
+        <p id="attempted-score" class="text-4xl font-extrabold text-white"></p>
+      </div>
+      <p class="text-slate-500 text-sm mb-6">Kembali besok untuk mencoba lagi!</p>
+      <button onclick="resetToLanding()"
+        class="bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-10 rounded-2xl text-lg transition-all duration-200 cursor-pointer">
+        Kembali ke Beranda
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== ADMIN VIEW ==================== -->
+  <div id="view-admin" class="w-full max-w-lg hidden">
+    <div class="bg-surface-800 rounded-3xl p-8 md:p-10 shadow-2xl slide-up">
+      <h2 class="text-2xl font-extrabold mb-2 text-accent-400">Admin Panel</h2>
+      <p class="text-slate-400 text-sm mb-6">Reset percobaan kuis pengguna untuk hari ini.</p>
+      <input id="admin-password" type="password" placeholder="Password admin..."
+        class="w-full px-4 py-3 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-sm mb-4 transition-all duration-200" />
+      <input id="admin-target-name" type="text" placeholder="Nama pengguna yang akan direset..."
+        class="w-full px-4 py-3 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-sm mb-4 transition-all duration-200" />
+      <p id="admin-status" class="text-sm mb-4 hidden"></p>
+      <div class="flex gap-3">
+        <button onclick="adminReset()"
+          class="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 cursor-pointer">
+          Reset Percobaan
+        </button>
+        <button onclick="resetToLanding()"
+          class="flex-1 bg-surface-900 hover:bg-surface-800 text-slate-300 font-semibold py-3 px-6 rounded-xl border border-slate-600/40 transition-all duration-200 cursor-pointer">
+          Kembali
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ============================================================
-    // CONFIGURATION — No secrets exposed here. The Netlify Function injects the API key server-side.
+    // CONFIGURATION
     // ============================================================
     const API_URL = "/.netlify/functions/quiz";
 
@@ -126,11 +176,23 @@
     const QUESTION_TIME = 10; // seconds per question
 
     // ============================================================
+    // SECURITY STATE
+    // ============================================================
+    let deviceFingerprint = null;
+    let quizStartTime = null;
+    let questionTimes = []; // ms spent on each question
+    let questionStartTime = null;
+    let tabSwitchCount = 0;
+    let quizActive = false;
+
+    // ============================================================
     // DOM REFERENCES
     // ============================================================
     const viewLanding = document.getElementById("view-landing");
     const viewQuiz    = document.getElementById("view-quiz");
     const viewResults = document.getElementById("view-results");
+    const viewAttempted = document.getElementById("view-attempted");
+    const viewAdmin   = document.getElementById("view-admin");
     const btnStart    = document.getElementById("btn-start");
     const landingStatus = document.getElementById("landing-status");
     const inputName   = document.getElementById("input-name");
@@ -143,14 +205,36 @@
     const resultsLogo = document.getElementById("results-logo");
     const timerText = document.getElementById("timer-text");
     const timerBar = document.getElementById("timer-bar");
+    const tabWarningBanner = document.getElementById("tab-warning-banner");
 
     // ============================================================
-    // SPONSOR LOGOS — Auto-detects assets/logo1.png through logo10.png
-    // Displays only logos that exist. Remove/add files to control count.
+    // DEVICE FINGERPRINT
+    // ============================================================
+    async function getDeviceFingerprint() {
+      const cached = localStorage.getItem("quiz_fingerprint");
+      if (cached) {
+        deviceFingerprint = cached;
+        return cached;
+      }
+      try {
+        const fp = await FingerprintJS.load();
+        const result = await fp.get();
+        deviceFingerprint = result.visitorId;
+        localStorage.setItem("quiz_fingerprint", deviceFingerprint);
+      } catch (e) {
+        // Fallback: generate a random ID
+        deviceFingerprint = "fp_" + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem("quiz_fingerprint", deviceFingerprint);
+      }
+      return deviceFingerprint;
+    }
+
+    // ============================================================
+    // SPONSOR LOGOS
     // ============================================================
     const MAX_LOGOS = 10;
     const LOGO_EXTENSIONS = ["png", "svg", "jpg", "jpeg", "webp", "gif"];
-    let allLogoSrcs = []; // store all detected logos for quiz view
+    let allLogoSrcs = [];
 
     function loadSponsorLogos() {
       let loaded = 0;
@@ -174,7 +258,6 @@
               wrapper.appendChild(this);
               logoContainer.appendChild(wrapper);
 
-              // Store logo source for quiz view
               allLogoSrcs.push(src);
               updateQuizLogos();
             }
@@ -194,7 +277,6 @@
       function finishLogoLoad() {
         const logos = logoContainer.children;
         if (logos.length === 0) {
-          // No custom logos found — show the fallback SVG
           logoContainer.innerHTML =
             '<svg class="w-24 h-24 glow" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
             '<defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">' +
@@ -222,6 +304,7 @@
     }
 
     loadSponsorLogos();
+    getDeviceFingerprint();
 
     // ============================================================
     // VIEW SWITCHING
@@ -230,7 +313,9 @@
       viewLanding.classList.add("hidden");
       viewQuiz.classList.add("hidden");
       viewResults.classList.add("hidden");
-      const map = { landing: viewLanding, quiz: viewQuiz, results: viewResults };
+      viewAttempted.classList.add("hidden");
+      viewAdmin.classList.add("hidden");
+      const map = { landing: viewLanding, quiz: viewQuiz, results: viewResults, attempted: viewAttempted, admin: viewAdmin };
       map[name].classList.remove("hidden");
     }
 
@@ -272,16 +357,17 @@
       const buttons = optionsContainer.querySelectorAll("button");
       buttons.forEach(function (b) { b.disabled = true; });
 
-      // Show time's up feedback
       timerText.textContent = "0";
       timerBar.style.transition = "none";
       timerBar.style.width = "0%";
 
-      // Brief flash on question text
       questionText.className = "text-xl md:text-2xl font-bold text-red-400 mb-8 leading-relaxed";
       setTimeout(function () {
         questionText.className = "text-xl md:text-2xl font-bold text-white mb-8 leading-relaxed";
       }, 300);
+
+      // Record time for this question (timed out = QUESTION_TIME * 1000)
+      recordQuestionTime(QUESTION_TIME * 1000);
 
       setTimeout(function () {
         currentIndex++;
@@ -294,7 +380,64 @@
     }
 
     // ============================================================
-    // FISHER-YATES SHUFFLE (client-side)
+    // SECURITY: TAB SWITCH DETECTION
+    // ============================================================
+    function handleVisibilityChange() {
+      if (!quizActive) return;
+      if (document.hidden) {
+        tabSwitchCount++;
+        tabWarningBanner.classList.remove("hidden");
+        tabWarningBanner.classList.add("tab-warning");
+        setTimeout(function () {
+          tabWarningBanner.classList.add("hidden");
+          tabWarningBanner.classList.remove("tab-warning");
+        }, 3000);
+      }
+    }
+
+    function handleWindowBlur() {
+      if (!quizActive) return;
+      tabSwitchCount++;
+      tabWarningBanner.classList.remove("hidden");
+      tabWarningBanner.classList.add("tab-warning");
+      setTimeout(function () {
+        tabWarningBanner.classList.add("hidden");
+        tabWarningBanner.classList.remove("tab-warning");
+      }, 3000);
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+
+    // ============================================================
+    // SECURITY: SCREENSHOT PREVENTION
+    // ============================================================
+    document.addEventListener("contextmenu", function(e) {
+      if (quizActive) e.preventDefault();
+    });
+
+    document.addEventListener("keydown", function(e) {
+      if (!quizActive) return;
+      // Block PrintScreen, Ctrl+Shift+S, Ctrl+P, Ctrl+U, F12, Ctrl+Shift+I
+      if (e.key === "PrintScreen" ||
+          (e.ctrlKey && e.shiftKey && (e.key === "S" || e.key === "I")) ||
+          (e.ctrlKey && e.key === "p") ||
+          (e.ctrlKey && e.key === "u") ||
+          e.key === "F12") {
+        e.preventDefault();
+        return false;
+      }
+    });
+
+    // ============================================================
+    // SECURITY: QUESTION TIMING TRACKER
+    // ============================================================
+    function recordQuestionTime(spentMs) {
+      questionTimes.push(spentMs);
+    }
+
+    // ============================================================
+    // FISHER-YATES SHUFFLE
     // ============================================================
     function shuffleArray(arr) {
       const shuffled = arr.slice();
@@ -334,10 +477,61 @@
     }
 
     // ============================================================
+    // SECURITY: CHECK IF USER ALREADY ATTEMPTED TODAY
+    // ============================================================
+    async function checkExistingAttempt(name, fingerprint) {
+      try {
+        const resp = await fetch(API_URL + "?action=checkAttempt&name=" + encodeURIComponent(name) + "&fingerprint=" + encodeURIComponent(fingerprint));
+        const data = await resp.json();
+        return data;
+      } catch (e) {
+        // If check fails, allow quiz to proceed (fail-open for UX)
+        return { attempted: false };
+      }
+    }
+
+    // ============================================================
+    // SECURITY: SUBMIT QUIZ TO SERVER
+    // ============================================================
+    async function submitQuizScore(score, totalQuestions, duration, qTimes, switches) {
+      const payload = {
+        action: "submitQuiz",
+        name: userName,
+        fingerprint: deviceFingerprint,
+        score: score,
+        totalQuestions: totalQuestions,
+        duration: duration,
+        questionTimes: qTimes,
+        tabSwitchCount: switches,
+        date: getTodayDate(),
+        timestamp: new Date().toISOString()
+      };
+
+      try {
+        const resp = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        return data;
+      } catch (e) {
+        return { error: "Submission failed" };
+      }
+    }
+
+    function getTodayDate() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + d;
+    }
+
+    // ============================================================
     // START QUIZ
     // ============================================================
     async function startQuiz() {
-      // Validate name input
       const nameVal = inputName.value.trim();
       if (!nameVal) {
         inputName.classList.add("border-red-500");
@@ -352,18 +546,32 @@
       landingStatus.classList.remove("hidden");
       landingStatus.classList.remove("text-red-400");
 
+      // Ensure fingerprint is ready
+      if (!deviceFingerprint) {
+        await getDeviceFingerprint();
+      }
+
+      // Check if already attempted today
+      landingStatus.textContent = "Mengeksekusi percobaan...";
+      const attemptCheck = await checkExistingAttempt(userName, deviceFingerprint);
+
+      if (attemptCheck.attempted) {
+        // Show already attempted view
+        document.getElementById("attempted-message").textContent = "Anda, " + userName + ", sudah mengerjakan kuis hari ini.";
+        document.getElementById("attempted-score").textContent = (attemptCheck.lastScore || 0) + " / 100";
+        showView("attempted");
+        btnStart.disabled = false;
+        btnStart.textContent = "Mulai Sekarang";
+        landingStatus.classList.add("hidden");
+        return;
+      }
+
       // Try cache first
       const cached = getCachedQuestions();
       if (cached && cached.length > 0) {
         landingStatus.textContent = "Memuat dari cache...";
         questions = shuffleArray(cached).slice(0, 10);
-        currentIndex = 0;
-        correctAnswers = 0;
-        showView("quiz");
-        renderQuestion();
-        btnStart.disabled = false;
-        btnStart.textContent = "Mulai Sekarang";
-        landingStatus.classList.add("hidden");
+        beginQuiz();
         return;
       }
 
@@ -382,23 +590,29 @@
           throw new Error("No questions available");
         }
 
-        // Cache all questions for future replays
         setCachedQuestions(allQuestions);
-
-        // Shuffle and pick 10
         questions = shuffleArray(allQuestions).slice(0, 10);
-
-        currentIndex = 0;
-        correctAnswers = 0;
-        showView("quiz");
-        renderQuestion();
+        beginQuiz();
       } catch (err) {
         landingStatus.textContent = "Gagal Memuat. Cek API";
         landingStatus.classList.add("text-red-400");
-      } finally {
         btnStart.disabled = false;
         btnStart.textContent = "Mulai Sekarang";
       }
+    }
+
+    function beginQuiz() {
+      currentIndex = 0;
+      correctAnswers = 0;
+      questionTimes = [];
+      tabSwitchCount = 0;
+      quizStartTime = Date.now();
+      quizActive = true;
+      showView("quiz");
+      renderQuestion();
+      btnStart.disabled = false;
+      btnStart.textContent = "Mulai Sekarang";
+      landingStatus.classList.add("hidden");
     }
 
     // ============================================================
@@ -438,7 +652,9 @@
       void card.offsetWidth;
       card.classList.add("slide-up");
 
-      // Start timer for this question
+      // Record start time for this question
+      questionStartTime = Date.now();
+
       startTimer();
     }
 
@@ -446,13 +662,12 @@
     // HANDLE ANSWER
     // ============================================================
     function handleAnswer(selectedIndex) {
-      clearTimer(); // Stop timer when answer is selected
+      clearTimer();
       const q = questions[currentIndex];
       const buttons = optionsContainer.querySelectorAll("button");
 
       buttons.forEach(function (b) { b.disabled = true; });
 
-      // Only highlight the selected answer (no correct answer reveal)
       buttons.forEach(function (b, i) {
         if (i === selectedIndex) {
           if (selectedIndex === q.correctIndex) {
@@ -469,6 +684,11 @@
         correctAnswers++;
       }
 
+      // Record time spent on this question
+      if (questionStartTime) {
+        recordQuestionTime(Date.now() - questionStartTime);
+      }
+
       setTimeout(function () {
         currentIndex++;
         if (currentIndex < questions.length) {
@@ -482,16 +702,42 @@
     // ============================================================
     // SHOW RESULTS
     // ============================================================
-    function showResults() {
+    async function showResults() {
+      quizActive = false;
       const total = questions.length;
       const score = Math.round((correctAnswers / total) * 100);
       const isPerfect = score === 100;
+      const totalDuration = quizStartTime ? (Date.now() - quizStartTime) / 1000 : 0;
 
       const resultsIcon  = document.getElementById("results-icon");
       const resultsTitle = document.getElementById("results-title");
       const resultsGreeting = document.getElementById("results-greeting");
       const scoreDisplay = document.getElementById("score-display");
       const btnAction    = document.getElementById("btn-result-action");
+      const resultsMeta  = document.getElementById("results-meta");
+      const submissionStatus = document.getElementById("results-submission-status");
+      const submissionText = document.getElementById("submission-status-text");
+
+      // Show timing metadata
+      resultsMeta.textContent = "Waktu: " + Math.round(totalDuration) + " detik | Tab switch: " + tabSwitchCount;
+
+      // Submit score to server
+      submissionStatus.classList.remove("hidden");
+      submissionText.textContent = "Menyimpan skor...";
+      submissionText.className = "text-sm text-slate-400";
+
+      const submitResult = await submitQuizScore(score, total, totalDuration, questionTimes, tabSwitchCount);
+
+      if (submitResult.error) {
+        submissionText.textContent = "Gagal menyimpan skor ke server.";
+        submissionText.className = "text-sm text-red-400";
+      } else if (submitResult.flagged) {
+        submissionText.textContent = "Skor tersimpan. Catatan: aktivitas mencurigakan terdeteksi.";
+        submissionText.className = "text-sm text-yellow-400";
+      } else {
+        submissionText.textContent = "Skor berhasil disimpan.";
+        submissionText.className = "text-sm text-green-400";
+      }
 
       if (isPerfect) {
         resultsGreeting.textContent = "Selamat, " + userName + "!";
@@ -540,6 +786,50 @@
     }
 
     // ============================================================
+    // ADMIN RESET
+    // ============================================================
+    async function adminReset() {
+      const password = document.getElementById("admin-password").value.trim();
+      const targetName = document.getElementById("admin-target-name").value.trim();
+      const statusEl = document.getElementById("admin-status");
+
+      if (!password || !targetName) {
+        statusEl.textContent = "Masukkan password dan nama pengguna.";
+        statusEl.className = "text-sm text-red-400 mb-4";
+        statusEl.classList.remove("hidden");
+        return;
+      }
+
+      statusEl.textContent = "Memproses...";
+      statusEl.className = "text-sm text-slate-400 mb-4";
+      statusEl.classList.remove("hidden");
+
+      try {
+        const resp = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "adminReset",
+            adminPassword: password,
+            name: targetName
+          })
+        });
+        const data = await resp.json();
+
+        if (data.error) {
+          statusEl.textContent = "Error: " + data.error;
+          statusEl.className = "text-sm text-red-400 mb-4";
+        } else {
+          statusEl.textContent = "Berhasil! " + data.resetCount + " percobaan direset untuk " + targetName + ".";
+          statusEl.className = "text-sm text-green-400 mb-4";
+        }
+      } catch (e) {
+        statusEl.textContent = "Gagal menghubungi server.";
+        statusEl.className = "text-sm text-red-400 mb-4";
+      }
+    }
+
+    // ============================================================
     // RESET
     // ============================================================
     function resetToLanding() {
@@ -548,9 +838,23 @@
       currentIndex = 0;
       correctAnswers = 0;
       userName = "";
+      questionTimes = [];
+      tabSwitchCount = 0;
+      quizStartTime = null;
+      quizActive = false;
       inputName.value = "";
       showView("landing");
     }
+
+    // ============================================================
+    // ADMIN PAGE ACCESS
+    // ============================================================
+    (function checkAdminAccess() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("admin") === "true") {
+        showView("admin");
+      }
+    })();
 
     // ============================================================
     // UTILS
