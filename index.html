@@ -96,7 +96,7 @@
       <div class="bg-surface-900 rounded-2xl py-6 px-4 mb-8 border border-slate-700/50">
         <p class="text-slate-400 text-sm mb-1">Skor Anda</p>
         <p id="score-display" class="text-5xl font-extrabold text-white"></p>
-        <p id="results-meta" class="text-slate-500 text-xs mt-2"></p>
+        <p id="results-meta" class="text-slate-500 text-xs mt-2 leading-relaxed"></p>
       </div>
       <div id="results-submission-status" class="hidden mb-4">
         <p id="submission-status-text" class="text-sm"></p>
@@ -180,10 +180,12 @@
     // ============================================================
     let deviceFingerprint = null;
     let quizStartTime = null;
+    let quizEndTime = null;
     let questionTimes = []; // ms spent on each question
     let questionStartTime = null;
     let tabSwitchCount = 0;
     let quizActive = false;
+    const ATTEMPT_LOCK_KEY = "quiz_attempt_lock";
 
     // ============================================================
     // DOM REFERENCES
@@ -479,13 +481,49 @@
     // ============================================================
     // SECURITY: CHECK IF USER ALREADY ATTEMPTED TODAY
     // ============================================================
+    function hasLocalAttemptLock() {
+      try {
+        const raw = localStorage.getItem(ATTEMPT_LOCK_KEY);
+        if (!raw) return false;
+        const lock = JSON.parse(raw);
+        return lock.date === getTodayDate();
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function setLocalAttemptLock() {
+      try {
+        localStorage.setItem(ATTEMPT_LOCK_KEY, JSON.stringify({ date: getTodayDate(), ts: Date.now() }));
+      } catch (e) {}
+    }
+
+    function clearLocalAttemptLock() {
+      localStorage.removeItem(ATTEMPT_LOCK_KEY);
+    }
+
     async function checkExistingAttempt(name, fingerprint) {
+      // Fast local check first
+      const localLocked = hasLocalAttemptLock();
+
+      // Server check (always, even if local locked — admin may have reset)
       try {
         const resp = await fetch(API_URL + "?action=checkAttempt&name=" + encodeURIComponent(name) + "&fingerprint=" + encodeURIComponent(fingerprint));
         const data = await resp.json();
-        return data;
+        if (data.attempted) {
+          setLocalAttemptLock();
+          return data;
+        }
+        // Server says no attempt — clear local lock (admin may have reset)
+        if (localLocked) {
+          clearLocalAttemptLock();
+        }
+        return { attempted: false };
       } catch (e) {
-        // If check fails, allow quiz to proceed (fail-open for UX)
+        // If server fails but local locked, block
+        if (localLocked) {
+          return { attempted: true, lastScore: null, source: "local" };
+        }
         return { attempted: false };
       }
     }
@@ -558,7 +596,10 @@
       if (attemptCheck.attempted) {
         // Show already attempted view
         document.getElementById("attempted-message").textContent = "Anda, " + userName + ", sudah mengerjakan kuis hari ini.";
-        document.getElementById("attempted-score").textContent = (attemptCheck.lastScore || 0) + " / 100";
+        const displayScore = attemptCheck.lastScore !== null && attemptCheck.lastScore !== undefined
+          ? (attemptCheck.lastScore + " / 100")
+          : "Tercatat";
+        document.getElementById("attempted-score").textContent = displayScore;
         showView("attempted");
         btnStart.disabled = false;
         btnStart.textContent = "Mulai Sekarang";
@@ -607,7 +648,12 @@
       questionTimes = [];
       tabSwitchCount = 0;
       quizStartTime = Date.now();
+      quizEndTime = null;
       quizActive = true;
+
+      // Lock retake immediately (prevents race condition)
+      setLocalAttemptLock();
+
       showView("quiz");
       renderQuestion();
       btnStart.disabled = false;
@@ -704,10 +750,15 @@
     // ============================================================
     async function showResults() {
       quizActive = false;
+      quizEndTime = Date.now();
       const total = questions.length;
       const score = Math.round((correctAnswers / total) * 100);
       const isPerfect = score === 100;
-      const totalDuration = quizStartTime ? (Date.now() - quizStartTime) / 1000 : 0;
+      const totalDuration = quizStartTime ? (quizEndTime - quizStartTime) / 1000 : 0;
+
+      // Format timestamps for display
+      const startTimeStr = quizStartTime ? new Date(quizStartTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "-";
+      const endTimeStr = new Date(quizEndTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
       const resultsIcon  = document.getElementById("results-icon");
       const resultsTitle = document.getElementById("results-title");
@@ -718,8 +769,8 @@
       const submissionStatus = document.getElementById("results-submission-status");
       const submissionText = document.getElementById("submission-status-text");
 
-      // Show timing metadata
-      resultsMeta.textContent = "Waktu: " + Math.round(totalDuration) + " detik | Tab switch: " + tabSwitchCount;
+      // Show timing metadata with start/end timestamps
+      resultsMeta.textContent = "Mulai: " + startTimeStr + " | Selesai: " + endTimeStr + " | Durasi: " + Math.round(totalDuration) + " detik | Tab switch: " + tabSwitchCount;
 
       // Submit score to server
       submissionStatus.classList.remove("hidden");
@@ -732,7 +783,7 @@
         submissionText.textContent = "Gagal menyimpan skor ke server.";
         submissionText.className = "text-sm text-red-400";
       } else if (submitResult.flagged) {
-        submissionText.textContent = "Skor tersimpan. Catatan: aktivitas mencurigakan terdeteksi.";
+        submissionText.textContent = "Skor tersimpan. Aktivitas mencurigakan terdeteksi — skor mungkin tidak valid untuk hadiah.";
         submissionText.className = "text-sm text-yellow-400";
       } else {
         submissionText.textContent = "Skor berhasil disimpan.";
