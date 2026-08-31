@@ -19,8 +19,9 @@ exports.handler = async function (event) {
 
     if (action === "checkAttempt") {
       const name = queryParams.get("name") || "";
+      const phone = queryParams.get("phone") || "";
       const fingerprint = queryParams.get("fingerprint") || "";
-      url += "&action=checkAttempt&name=" + encodeURIComponent(name) + "&fingerprint=" + encodeURIComponent(fingerprint);
+      url += "&action=checkAttempt&name=" + encodeURIComponent(name) + "&phone=" + encodeURIComponent(phone) + "&fingerprint=" + encodeURIComponent(fingerprint);
     }
 
     const controller = new AbortController();

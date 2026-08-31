@@ -52,6 +52,8 @@
     <h1 class="text-4xl font-extrabold mb-3 glow-text text-white">Kuis Pameran Arsip</h1>
     <p class="text-slate-400 text-lg mb-6">Jawab pertanyaanya dan dapatkan hadiah yang menarik</p>
     <input id="input-name" type="text" placeholder="Masukkan nama Anda..."
+      class="w-full px-5 py-4 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-lg mb-4 transition-all duration-200" />
+    <input id="input-phone" type="tel" placeholder="Masukkan nomor HP Anda..."
       class="w-full px-5 py-4 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-lg mb-6 transition-all duration-200" />
     <button id="btn-start"
       onclick="startQuiz()"
@@ -176,6 +178,7 @@
     let currentIndex = 0;
     let correctAnswers = 0;
     let userName = "";
+    let userPhone = "";
     let timerInterval = null;
     let timeLeft = 5;
     const QUESTION_TIME = 10; // seconds per question
@@ -203,6 +206,7 @@
     const btnStart    = document.getElementById("btn-start");
     const landingStatus = document.getElementById("landing-status");
     const inputName   = document.getElementById("input-name");
+    const inputPhone  = document.getElementById("input-phone");
     const progressText = document.getElementById("progress-text");
     const progressBar  = document.getElementById("progress-bar");
     const questionText = document.getElementById("question-text");
@@ -510,13 +514,13 @@
       localStorage.removeItem(ATTEMPT_LOCK_KEY);
     }
 
-    async function checkExistingAttempt(name, fingerprint) {
+    async function checkExistingAttempt(name, phone, fingerprint) {
       // Fast local check first
       const localLocked = hasLocalAttemptLock();
 
       // Server check (always, even if local locked — admin may have reset)
       try {
-        const resp = await fetch(API_URL + "?action=checkAttempt&name=" + encodeURIComponent(name) + "&fingerprint=" + encodeURIComponent(fingerprint));
+        const resp = await fetch(API_URL + "?action=checkAttempt&name=" + encodeURIComponent(name) + "&phone=" + encodeURIComponent(phone) + "&fingerprint=" + encodeURIComponent(fingerprint));
         const data = await resp.json();
         if (data.attempted) {
           setLocalAttemptLock();
@@ -543,6 +547,7 @@
       const payload = {
         action: "submitQuiz",
         name: userName,
+        phone: userPhone,
         fingerprint: deviceFingerprint,
         score: score,
         totalQuestions: totalQuestions,
@@ -584,8 +589,18 @@
         inputName.focus();
         return;
       }
-      userName = nameVal;
       inputName.classList.remove("border-red-500");
+
+      const phoneVal = inputPhone.value.trim();
+      if (!phoneVal) {
+        inputPhone.classList.add("border-red-500");
+        inputPhone.focus();
+        return;
+      }
+      inputPhone.classList.remove("border-red-500");
+
+      userName = nameVal;
+      userPhone = phoneVal;
 
       btnStart.disabled = true;
       btnStart.textContent = "Memuat Soal...";
@@ -610,7 +625,7 @@
 
       // Check if already attempted today
       landingStatus.textContent = "Mengeksekusi percobaan...";
-      const attemptCheck = await checkExistingAttempt(userName, deviceFingerprint);
+      const attemptCheck = await checkExistingAttempt(userName, userPhone, deviceFingerprint);
 
       if (attemptCheck.attempted) {
         // Show already attempted view
@@ -916,11 +931,13 @@
       currentIndex = 0;
       correctAnswers = 0;
       userName = "";
+      userPhone = "";
       questionTimes = [];
       tabSwitchCount = 0;
       quizStartTime = null;
       quizActive = false;
       inputName.value = "";
+      inputPhone.value = "";
       showView("landing");
     }
 

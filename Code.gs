@@ -143,11 +143,12 @@ function doPost(e) {
 // ============================================================
 function handleCheckAttempt(e) {
   const name = (e.parameter.name || "").trim().toLowerCase();
+  const phone = (e.parameter.phone || "").trim();
   const fingerprint = (e.parameter.fingerprint || "").trim();
 
-  if (!name || !fingerprint) {
+  if (!name || !phone || !fingerprint) {
     return ContentService
-      .createTextOutput(JSON.stringify({ error: "Name and fingerprint required" }))
+      .createTextOutput(JSON.stringify({ error: "Name, phone, and fingerprint required" }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -167,6 +168,7 @@ function handleCheckAttempt(e) {
 
   // Find columns by header
   const nameCol = header.indexOf("name");
+  const phoneCol = header.indexOf("phone");
   const fpCol = header.indexOf("fingerprint");
   const dateCol = header.indexOf("date");
   const scoreCol = header.indexOf("score");
@@ -179,10 +181,11 @@ function handleCheckAttempt(e) {
     const row = rows[i];
     const rowDate = String(row[dateCol] || "");
     const rowName = String(row[nameCol] || "").trim().toLowerCase();
+    const rowPhone = phoneCol >= 0 ? String(row[phoneCol] || "").trim() : "";
     const rowFp = String(row[fpCol] || "").trim();
     const isReset = row[resetCol] === true || String(row[resetCol]).toLowerCase() === "true";
 
-    if (rowDate === today && rowName === name && rowFp === fingerprint && !isReset) {
+    if (rowDate === today && rowName === name && rowPhone === phone && rowFp === fingerprint && !isReset) {
       lastAttempt = {
         score: row[scoreCol],
         flagged: row[flaggedCol]
@@ -205,9 +208,9 @@ function handleCheckAttempt(e) {
 // SUBMIT QUIZ - Save attempt to Attempts sheet
 // ============================================================
 function handleSubmitQuiz(body) {
-  const { name, fingerprint, score, totalQuestions, duration, questionTimes, tabSwitchCount, date, timestamp } = body;
+  const { name, phone, fingerprint, score, totalQuestions, duration, questionTimes, tabSwitchCount, date, timestamp } = body;
 
-  if (!name || !fingerprint || score === undefined || !totalQuestions) {
+  if (!name || !phone || !fingerprint || score === undefined || !totalQuestions) {
     return ContentService
       .createTextOutput(JSON.stringify({ error: "Missing required fields" }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -224,16 +227,16 @@ function handleSubmitQuiz(body) {
   if (!sheet) {
     sheet = ss.insertSheet("Attempts");
     sheet.appendRow([
-      "timestamp", "name", "fingerprint", "score", "totalQuestions",
+      "timestamp", "name", "phone", "fingerprint", "score", "totalQuestions",
       "duration", "questionTimes", "tabSwitchCount", "date", "flagged", "adminReset"
     ]);
     // Style header
-    const headerRange = sheet.getRange(1, 1, 1, 11);
+    const headerRange = sheet.getRange(1, 1, 1, 12);
     headerRange.setFontWeight("bold");
     headerRange.setBackground("#4a86c8");
     headerRange.setFontColor("#ffffff");
     // Auto-resize columns
-    for (let c = 1; c <= 11; c++) {
+    for (let c = 1; c <= 12; c++) {
       sheet.autoResizeColumn(c);
     }
   }
@@ -241,6 +244,7 @@ function handleSubmitQuiz(body) {
   sheet.appendRow([
     timestamp || new Date().toISOString(),
     name,
+    phone,
     fingerprint,
     score,
     totalQuestions,
