@@ -127,16 +127,10 @@
           class="w-full px-4 py-3 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-sm transition-all duration-200" />
         <p id="attempted-retry-status" class="text-sm mt-2 hidden"></p>
       </div>
-      <div class="flex gap-3">
-        <button onclick="attemptedRetry()"
-          class="flex-1 bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 cursor-pointer">
-          Coba Lagi
-        </button>
-        <button onclick="resetToLanding()"
-          class="flex-1 bg-surface-900 hover:bg-surface-800 text-slate-300 font-semibold py-4 px-6 rounded-2xl border border-slate-600/40 transition-all duration-200 cursor-pointer">
-          Kembali
-        </button>
-      </div>
+      <button onclick="attemptedRetry()"
+        class="w-full bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 cursor-pointer">
+        Coba Lagi (Hubungi Panitia)
+      </button>
     </div>
   </div>
 
@@ -603,6 +597,17 @@
         await getDeviceFingerprint();
       }
 
+      // Client-side guard: check local lock first
+      if (hasLocalAttemptLock()) {
+        document.getElementById("attempted-message").textContent = "Anda, " + userName + ", sudah mengerjakan kuis hari ini.";
+        document.getElementById("attempted-score").textContent = "Tercatat";
+        showView("attempted");
+        btnStart.disabled = false;
+        btnStart.textContent = "Mulai Sekarang";
+        landingStatus.classList.add("hidden");
+        return;
+      }
+
       // Check if already attempted today
       landingStatus.textContent = "Mengeksekusi percobaan...";
       const attemptCheck = await checkExistingAttempt(userName, deviceFingerprint);
@@ -814,8 +819,12 @@
         resultsTitle.className = "text-3xl font-extrabold mb-4 text-yellow-400";
         scoreDisplay.textContent = "100 / 100";
         scoreDisplay.className = "text-5xl font-extrabold text-yellow-400";
-        btnAction.textContent = "Kembali ke Beranda";
-        btnAction.onclick = resetToLanding;
+        btnAction.textContent = "Lihat Hasil";
+        btnAction.onclick = function() {
+          document.getElementById("attempted-message").textContent = "Anda, " + userName + ", sudah mengerjakan kuis hari ini.";
+          document.getElementById("attempted-score").textContent = "100 / 100";
+          showView("attempted");
+        };
 
         showView("results");
         fireConfetti();
@@ -829,8 +838,12 @@
         resultsTitle.className = "text-3xl font-extrabold mb-4 text-accent-400";
         scoreDisplay.textContent = score + " / 100";
         scoreDisplay.className = "text-5xl font-extrabold text-white";
-        btnAction.textContent = "Kembali ke Beranda";
-        btnAction.onclick = resetToLanding;
+        btnAction.textContent = "Lihat Hasil";
+        btnAction.onclick = function() {
+          document.getElementById("attempted-message").textContent = "Anda, " + userName + ", sudah mengerjakan kuis hari ini.";
+          document.getElementById("attempted-score").textContent = score + " / 100";
+          showView("attempted");
+        };
 
         showView("results");
       }
