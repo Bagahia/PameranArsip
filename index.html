@@ -122,29 +122,19 @@
         <p id="attempted-score" class="text-4xl font-extrabold text-white"></p>
       </div>
       <p class="text-slate-500 text-sm mb-6">Kembali besok untuk mencoba lagi!</p>
-      <button onclick="resetToLanding()"
-        class="bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-10 rounded-2xl text-lg transition-all duration-200 cursor-pointer">
-        Kembali ke Beranda
-      </button>
-    </div>
-  </div>
-
-  <!-- ==================== RETRY PASSWORD MODAL ==================== -->
-  <div id="retry-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
-    <div class="bg-surface-800 rounded-3xl p-8 w-full max-w-md mx-4 shadow-2xl slide-up">
-      <h3 class="text-2xl font-extrabold mb-2 text-accent-400">Coba Lagi</h3>
-      <p class="text-slate-400 text-sm mb-6">Masukkan password admin untuk mengulang kuis. Hubungi panitia di lokasi pameran.</p>
-      <input id="retry-password" type="password" placeholder="Password admin..."
-        class="w-full px-4 py-3 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-sm mb-4 transition-all duration-200" />
-      <p id="retry-status" class="text-sm mb-4 hidden"></p>
+      <div class="mb-4">
+        <input id="attempted-retry-password" type="password" placeholder="Password admin untuk retry..."
+          class="w-full px-4 py-3 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-sm transition-all duration-200" />
+        <p id="attempted-retry-status" class="text-sm mt-2 hidden"></p>
+      </div>
       <div class="flex gap-3">
-        <button onclick="retryWithPassword()"
-          class="flex-1 bg-accent-500 hover:bg-accent-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 cursor-pointer">
-          Konfirmasi
+        <button onclick="attemptedRetry()"
+          class="flex-1 bg-accent-500 hover:bg-accent-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 cursor-pointer">
+          Coba Lagi
         </button>
-        <button onclick="closeRetryModal()"
-          class="flex-1 bg-surface-900 hover:bg-surface-800 text-slate-300 font-semibold py-3 px-6 rounded-xl border border-slate-600/40 transition-all duration-200 cursor-pointer">
-          Batal
+        <button onclick="resetToLanding()"
+          class="flex-1 bg-surface-900 hover:bg-surface-800 text-slate-300 font-semibold py-4 px-6 rounded-2xl border border-slate-600/40 transition-all duration-200 cursor-pointer">
+          Kembali
         </button>
       </div>
     </div>
@@ -451,8 +441,8 @@
       }
     });
 
-    document.getElementById("retry-password").addEventListener("keydown", function(e) {
-      if (e.key === "Enter") retryWithPassword();
+    document.getElementById("attempted-retry-password").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") attemptedRetry();
     });
 
     // ============================================================
@@ -835,12 +825,12 @@
           '<svg class="w-20 h-20 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
           '<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>' +
           '</svg>';
-        resultsTitle.textContent = "Coba Lagi!";
+        resultsTitle.textContent = "Skor Tercatat!";
         resultsTitle.className = "text-3xl font-extrabold mb-4 text-accent-400";
         scoreDisplay.textContent = score + " / 100";
         scoreDisplay.className = "text-5xl font-extrabold text-white";
-        btnAction.textContent = "Coba Lagi";
-        btnAction.onclick = openRetryModal;
+        btnAction.textContent = "Kembali ke Beranda";
+        btnAction.onclick = resetToLanding;
 
         showView("results");
       }
@@ -922,20 +912,47 @@
     }
 
     // ============================================================
-    // RETRY WITH PASSWORD
+    // RETRY WITH PASSWORD (from Already Attempted view)
     // ============================================================
-    function openRetryModal() {
-      const modal = document.getElementById("retry-modal");
-      const pwInput = document.getElementById("retry-password");
-      const statusEl = document.getElementById("retry-status");
-      modal.classList.remove("hidden");
-      pwInput.value = "";
-      statusEl.classList.add("hidden");
-      pwInput.focus();
-    }
+    async function attemptedRetry() {
+      const password = document.getElementById("attempted-retry-password").value.trim();
+      const statusEl = document.getElementById("attempted-retry-status");
 
-    function closeRetryModal() {
-      document.getElementById("retry-modal").classList.add("hidden");
+      if (!password) {
+        statusEl.textContent = "Masukkan password admin.";
+        statusEl.className = "text-sm text-red-400";
+        statusEl.classList.remove("hidden");
+        return;
+      }
+
+      statusEl.textContent = "Memproses...";
+      statusEl.className = "text-sm text-slate-400";
+      statusEl.classList.remove("hidden");
+
+      try {
+        const resp = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "adminReset",
+            adminPassword: password,
+            name: userName,
+            fingerprint: deviceFingerprint
+          })
+        });
+        const data = await resp.json();
+
+        if (data.error) {
+          statusEl.textContent = "Password salah. Hubungi panitia.";
+          statusEl.className = "text-sm text-red-400";
+        } else {
+          clearLocalAttemptLock();
+          resetToLanding();
+        }
+      } catch (e) {
+        statusEl.textContent = "Gagal menghubungi server.";
+        statusEl.className = "text-sm text-red-400";
+      }
     }
 
     async function retryWithPassword() {
