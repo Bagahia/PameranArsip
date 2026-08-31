@@ -129,6 +129,27 @@
     </div>
   </div>
 
+  <!-- ==================== RETRY PASSWORD MODAL ==================== -->
+  <div id="retry-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+    <div class="bg-surface-800 rounded-3xl p-8 w-full max-w-md mx-4 shadow-2xl slide-up">
+      <h3 class="text-2xl font-extrabold mb-2 text-accent-400">Coba Lagi</h3>
+      <p class="text-slate-400 text-sm mb-6">Masukkan password admin untuk mengulang kuis. Hubungi panitia di lokasi pameran.</p>
+      <input id="retry-password" type="password" placeholder="Password admin..."
+        class="w-full px-4 py-3 rounded-xl bg-surface-900 border-2 border-slate-600/40 focus:border-accent-400 focus:outline-none text-white text-sm mb-4 transition-all duration-200" />
+      <p id="retry-status" class="text-sm mb-4 hidden"></p>
+      <div class="flex gap-3">
+        <button onclick="retryWithPassword()"
+          class="flex-1 bg-accent-500 hover:bg-accent-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 cursor-pointer">
+          Konfirmasi
+        </button>
+        <button onclick="closeRetryModal()"
+          class="flex-1 bg-surface-900 hover:bg-surface-800 text-slate-300 font-semibold py-3 px-6 rounded-xl border border-slate-600/40 transition-all duration-200 cursor-pointer">
+          Batal
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==================== ADMIN VIEW ==================== -->
   <div id="view-admin" class="w-full max-w-lg hidden">
     <div class="bg-surface-800 rounded-3xl p-8 md:p-10 shadow-2xl slide-up">
@@ -420,7 +441,6 @@
 
     document.addEventListener("keydown", function(e) {
       if (!quizActive) return;
-      // Block PrintScreen, Ctrl+Shift+S, Ctrl+P, Ctrl+U, F12, Ctrl+Shift+I
       if (e.key === "PrintScreen" ||
           (e.ctrlKey && e.shiftKey && (e.key === "S" || e.key === "I")) ||
           (e.ctrlKey && e.key === "p") ||
@@ -429,6 +449,10 @@
         e.preventDefault();
         return false;
       }
+    });
+
+    document.getElementById("retry-password").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") retryWithPassword();
     });
 
     // ============================================================
@@ -816,7 +840,7 @@
         scoreDisplay.textContent = score + " / 100";
         scoreDisplay.className = "text-5xl font-extrabold text-white";
         btnAction.textContent = "Coba Lagi";
-        btnAction.onclick = resetToLanding;
+        btnAction.onclick = openRetryModal;
 
         showView("results");
       }
@@ -895,6 +919,65 @@
       quizActive = false;
       inputName.value = "";
       showView("landing");
+    }
+
+    // ============================================================
+    // RETRY WITH PASSWORD
+    // ============================================================
+    function openRetryModal() {
+      const modal = document.getElementById("retry-modal");
+      const pwInput = document.getElementById("retry-password");
+      const statusEl = document.getElementById("retry-status");
+      modal.classList.remove("hidden");
+      pwInput.value = "";
+      statusEl.classList.add("hidden");
+      pwInput.focus();
+    }
+
+    function closeRetryModal() {
+      document.getElementById("retry-modal").classList.add("hidden");
+    }
+
+    async function retryWithPassword() {
+      const password = document.getElementById("retry-password").value.trim();
+      const statusEl = document.getElementById("retry-status");
+
+      if (!password) {
+        statusEl.textContent = "Masukkan password admin.";
+        statusEl.className = "text-sm text-red-400 mb-4";
+        statusEl.classList.remove("hidden");
+        return;
+      }
+
+      statusEl.textContent = "Memproses...";
+      statusEl.className = "text-sm text-slate-400 mb-4";
+      statusEl.classList.remove("hidden");
+
+      try {
+        const resp = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "adminReset",
+            adminPassword: password,
+            name: userName,
+            fingerprint: deviceFingerprint
+          })
+        });
+        const data = await resp.json();
+
+        if (data.error) {
+          statusEl.textContent = "Password salah. Hubungi panitia.";
+          statusEl.className = "text-sm text-red-400 mb-4";
+        } else {
+          clearLocalAttemptLock();
+          closeRetryModal();
+          resetToLanding();
+        }
+      } catch (e) {
+        statusEl.textContent = "Gagal menghubungi server.";
+        statusEl.className = "text-sm text-red-400 mb-4";
+      }
     }
 
     // ============================================================
